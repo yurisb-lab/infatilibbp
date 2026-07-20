@@ -362,8 +362,6 @@
 
     <!-- ESCALAS -->
     <div class="view" id="view-escalas">
-      <div class="section-title">Datas rápidas <span class="muted">toque para criar</span></div>
-      <div id="quick-dates" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:4px"></div>
       <div class="section-title">Escalas <span class="muted" id="escalas-count"></span></div>
       <div id="escalas-list"></div>
     </div>
@@ -378,20 +376,26 @@
 
     <!-- MENSAGENS -->
     <div class="view" id="view-lembretes">
-      <div class="section-title">Central de Mensagens <span class="muted" id="lembretes-count"></span></div>
+      <div class="section-title">Central de Mensagens <span class="muted" id="lembretes-count"></span>
+        <button class="btn small" id="btn-new-message" style="margin-left:auto">+ Mensagem</button>
+      </div>
       <p class="muted" style="margin:-4px 4px 12px">Envie lembretes de escala, avisos e mensagens prontas para voluntários e pais/responsáveis.</p>
       <div id="lembretes-list"></div>
     </div>
 
     <!-- VOLUNTÁRIOS -->
     <div class="view" id="view-voluntarios">
-      <div class="section-title">Voluntários <span class="muted" id="voluntarios-count"></span></div>
+      <div class="section-title">Voluntários <span class="muted" id="voluntarios-count"></span>
+        <button class="btn small" id="btn-new-volunteer" style="margin-left:auto">+ Voluntário</button>
+      </div>
       <div id="voluntarios-list"></div>
     </div>
 
     <!-- CRIANÇAS -->
     <div class="view" id="view-criancas">
-      <div class="section-title">Crianças <span class="muted" id="criancas-count"></span></div>
+      <div class="section-title">Crianças <span class="muted" id="criancas-count"></span>
+        <button class="btn small" id="btn-new-child" style="margin-left:auto">+ Criança</button>
+      </div>
       <input id="criancas-search" placeholder="Buscar criança..." style="margin-bottom:12px">
       <div id="criancas-list"></div>
     </div>
@@ -466,6 +470,8 @@ var firebaseConfig = {
 
   var FUNCOES = ['Professor','Auxiliar','Pregador'];
   var DISPONIBILIDADE_OPTS = ['Sábado','Domingo','Manhã','Noite'];
+  var CHILD_ICONS = { M:'👦', F:'👧' };
+  var expandedClasses = {};
 
   function ageRangeOptions(){
     var seen = {}; var out = [];
@@ -663,17 +669,17 @@ var firebaseConfig = {
     document.querySelectorAll('.navbtn').forEach(function(el){
       el.classList.toggle('active', el.getAttribute('data-view')===v);
     });
+    document.getElementById('fab-add').style.display = (v==='escalas') ? 'flex' : 'none';
   }
+  document.getElementById('fab-add').style.display = 'none';
 
   document.getElementById('fab-add').addEventListener('click', function(){
-    if(currentView==='escalas') openScheduleForm();
-    else if(currentView==='aulas') openClassForm();
-    else if(currentView==='lembretes') openMessageForm();
-    else if(currentView==='voluntarios') openVolunteerForm();
-    else if(currentView==='criancas') openChildForm();
-    else openScheduleForm();
+    openScheduleForm();
   });
   document.getElementById('btn-new-class').addEventListener('click', function(){ openClassForm(); });
+  document.getElementById('btn-new-volunteer').addEventListener('click', function(){ openVolunteerForm(); });
+  document.getElementById('btn-new-child').addEventListener('click', function(){ openChildForm(); });
+  document.getElementById('btn-new-message').addEventListener('click', function(){ openMessageForm(); });
 
   var childrenSearchTerm = '';
   document.getElementById('criancas-search').addEventListener('input', function(e){
@@ -822,8 +828,7 @@ var firebaseConfig = {
       list.innerHTML = '<div class="card empty">Nenhum voluntário cadastrado ainda.<br>Toque em + para adicionar.</div>';
       return;
     }
-    var sorted = DATA.volunteers.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
-    list.innerHTML = sorted.map(function(v){
+    function renderVolCard(v){
       var classNames = (v.classIds||[]).map(function(cid){
         var c = DATA.classes.find(function(x){return x.id===cid;});
         return c ? c.name : null;
@@ -845,7 +850,18 @@ var firebaseConfig = {
             '</div>'
           : '')+
         '</div>';
-    }).join('');
+    }
+    var groups = FUNCOES.concat(['Sem função']);
+    var html = '';
+    groups.forEach(function(g){
+      var members = DATA.volunteers.filter(function(v){
+        return g==='Sem função' ? !v.role : v.role===g;
+      }).sort(function(a,b){return a.name.localeCompare(b.name);});
+      if(!members.length) return;
+      html += '<p class="section-title" style="margin:18px 4px 8px">'+g+' <span class="muted">('+members.length+')</span></p>';
+      html += members.map(renderVolCard).join('');
+    });
+    list.innerHTML = html;
   }
   window.__openVol = openVolunteerForm;
 
@@ -880,11 +896,17 @@ var firebaseConfig = {
   }
 
   function openChildForm(id){
-    var c = id ? DATA.children.find(function(x){return x.id===id;}) : {name:'', birthdate:'', classId:'', guardians:'', phones:'', allergies:'', notes:''};
+    var c = id ? DATA.children.find(function(x){return x.id===id;}) : {name:'', birthdate:'', sex:'', classId:'', guardians:'', phones:'', allergies:'', notes:''};
+    var selectedSex = c.sex || '';
     openSheet(
       '<h2>'+(id?'Editar criança':'Nova criança')+'</h2>'+
       '<label>Nome</label><input id="f-name" value="'+escapeAttr(c.name)+'" placeholder="Nome da criança">'+
       '<label>Data de nascimento</label><input type="date" id="f-birth" value="'+(c.birthdate||'')+'">'+
+      '<label>Sexo</label>'+
+      '<div class="chip-select" id="sex-chips">'+
+        '<div class="chip'+(c.sex==='M'?' on':'')+'" data-sex="M">👦 Menino</div>'+
+        '<div class="chip'+(c.sex==='F'?' on':'')+'" data-sex="F">👧 Menina</div>'+
+      '</div>'+
       '<label>Turma</label>'+
       (DATA.classes.length
         ? '<select id="f-classid"><option value="">— Selecione uma turma —</option>'+
@@ -903,6 +925,17 @@ var firebaseConfig = {
         '<button class="btn primary" id="f-save">Salvar</button>'+
       '</div>'
     );
+    document.getElementById('sex-chips').querySelectorAll('.chip').forEach(function(el){
+      el.addEventListener('click', function(){
+        var s = el.getAttribute('data-sex');
+        if(selectedSex===s){ selectedSex=''; el.classList.remove('on'); }
+        else{
+          selectedSex = s;
+          document.getElementById('sex-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          el.classList.add('on');
+        }
+      });
+    });
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
@@ -912,6 +945,7 @@ var firebaseConfig = {
         id: id || uid(),
         name: name,
         birthdate: document.getElementById('f-birth').value,
+        sex: selectedSex,
         classId: classSelectEl ? classSelectEl.value : (c.classId||''),
         guardians: document.getElementById('f-guardians').value.trim(),
         phones: document.getElementById('f-phones').value.trim(),
@@ -960,9 +994,10 @@ var firebaseConfig = {
       var cls = c.classId ? DATA.classes.find(function(x){return x.id===c.classId;}) : null;
       var pal = cls ? (CLASS_COLORS[cls.color] || CLASS_COLORS.roxo) : null;
       var age = fmtAge(c.birthdate);
+      var childIcon = CHILD_ICONS[c.sex] || '🧒';
       return '<div class="card" onclick="window.__openChild(\''+c.id+'\')" style="cursor:pointer">'+
         '<div class="row">'+
-          '<p class="card-title" style="margin:0">'+escapeHtml(c.name)+'</p>'+
+          '<p class="card-title" style="margin:0;display:flex;align-items:center;gap:6px"><span>'+childIcon+'</span>'+escapeHtml(c.name)+'</p>'+
           (age?'<span class="pill">'+age+'</span>':'')+
         '</div>'+
         (cls?'<p class="card-sub" style="margin-top:2px"><span class="tag" style="background:'+pal.tint+';color:'+pal.text+'">'+escapeHtml(cls.name)+'</span></p>':'')+
@@ -973,20 +1008,50 @@ var firebaseConfig = {
     }).join('');
   }
 
-  function teacherChipPicker(selectedName){
+  function teacherChipPicker(selectedName, idSuffix){
+    idSuffix = idSuffix || '';
     if(!DATA.volunteers.length){
-      return '<input id="f-teacher" value="'+escapeAttr(selectedName||'')+'" placeholder="Nome do professor(a)">';
+      return '<input id="f-teacher'+idSuffix+'" value="'+escapeAttr(selectedName||'')+'" placeholder="Nome do professor(a)">';
     }
     var isCustom = selectedName && !DATA.volunteers.some(function(v){return v.name===selectedName;});
-    var html = '<div class="chip-select" id="teacher-chips">';
+    var html = '<div class="chip-select" id="teacher-chips'+idSuffix+'">';
     html += DATA.volunteers.map(function(v){
       var on = v.name===selectedName;
       return '<div class="chip'+(on?' on':'')+'" data-name="'+escapeAttr(v.name)+'">'+escapeHtml(v.name)+'</div>';
     }).join('');
     html += '<div class="chip'+(isCustom?' on':'')+'" data-name="__custom">Outro(a)</div>';
     html += '</div>';
-    html += '<input id="f-teacher-custom" style="margin-top:8px;'+(isCustom?'':'display:none')+'" placeholder="Nome do professor(a)" value="'+escapeAttr(isCustom?selectedName:'')+'">';
+    html += '<input id="f-teacher-custom'+idSuffix+'" style="margin-top:8px;'+(isCustom?'':'display:none')+'" placeholder="Nome do professor(a)" value="'+escapeAttr(isCustom?selectedName:'')+'">';
     return html;
+  }
+
+  function wireTeacherPicker(idSuffix, onChange){
+    var chips = document.getElementById('teacher-chips'+idSuffix);
+    if(!chips) return;
+    chips.querySelectorAll('.chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        chips.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        c.classList.add('on');
+        var name = c.getAttribute('data-name');
+        var customInput = document.getElementById('f-teacher-custom'+idSuffix);
+        if(name==='__custom'){
+          customInput.style.display = '';
+          customInput.focus();
+          onChange(customInput.value.trim());
+        } else {
+          customInput.style.display = 'none';
+          onChange(name);
+        }
+      });
+    });
+    var customInputInit = document.getElementById('f-teacher-custom'+idSuffix);
+    if(customInputInit){
+      customInputInit.addEventListener('input', function(){
+        if(chips.querySelector('.chip[data-name="__custom"]').classList.contains('on')){
+          onChange(customInputInit.value.trim());
+        }
+      });
+    }
   }
 
   function volunteerChipPicker(selectedIds, classId, tipo, role, showAll){
@@ -1202,34 +1267,6 @@ var firebaseConfig = {
     }).filter(Boolean);
   }
 
-  function renderQuickDates(){
-    var box = document.getElementById('quick-dates');
-    var out = [];
-    var d = new Date();
-    for(var i=0; i<56; i++){
-      var day = d.getDay();
-      if(day===0 || day===6){
-        var iso = d.toISOString().slice(0,10);
-        var already = DATA.schedule.some(function(s){return s.date===iso;});
-        if(!already){
-          out.push({date: iso, tipo: day===0?'Domingo':'Sábado'});
-        }
-      }
-      d.setDate(d.getDate()+1);
-      if(out.length>=14) break;
-    }
-    box.innerHTML = out.map(function(o){
-      return '<div class="chip" style="flex:none;white-space:nowrap" onclick="window.__quickAdd(\''+o.date+'\',\''+o.tipo+'\')">'+
-        (o.tipo==='Domingo'?'Dom':'Sáb')+' '+fmtDateShort(o.date)+'</div>';
-    }).join('');
-  }
-  window.__quickAdd = function(date, tipo){
-    openScheduleForm();
-    document.getElementById('f-date').value = date;
-    var target = document.querySelector('#tipo-chips .chip[data-tipo="'+tipo+'"]');
-    if(target) target.click();
-  };
-
   function findClassByName(name){
     var norm = (name||'').trim().toLowerCase();
     return DATA.classes.find(function(c){ return c.name.trim().toLowerCase()===norm; });
@@ -1274,13 +1311,18 @@ var firebaseConfig = {
 
   // ---------- TURMAS ----------
   function openClassForm(id){
-    var c = id ? DATA.classes.find(function(x){return x.id===id;}) : {name:'', ageRange:'', revista:'', color: CLASS_COLOR_KEYS[DATA.classes.length % CLASS_COLOR_KEYS.length]};
+    var c = id ? DATA.classes.find(function(x){return x.id===id;}) : {name:'', ageRange:'', revista:'', professor:'', auxiliar:'', color: CLASS_COLOR_KEYS[DATA.classes.length % CLASS_COLOR_KEYS.length]};
     var selectedColor = c.color;
+    var selectedProfessor = c.professor || '';
+    var selectedAuxiliar = c.auxiliar || '';
     openSheet(
       '<h2>'+(id?'Editar turma':'Nova turma')+'</h2>'+
       '<label>Nome da turma</label><input id="f-name" value="'+escapeAttr(c.name)+'" placeholder="Ex: Juniores">'+
       '<label>Faixa etária (opcional)</label><input id="f-age" value="'+escapeAttr(c.ageRange||'')+'" placeholder="Ex: 7 a 9 anos">'+
       '<label>Revista / currículo (opcional)</label><input id="f-revista" value="'+escapeAttr(c.revista||'')+'" placeholder="Ex: Heróis da Fé">'+
+      '<label>Professor(a) responsável (opcional)</label>'+teacherChipPicker(selectedProfessor, '-prof')+
+      '<label>Auxiliar (opcional)</label>'+teacherChipPicker(selectedAuxiliar, '-aux')+
+      '<p class="muted" style="margin-top:4px">Estes são os responsáveis padrão da turma — fique à vontade para deixar em branco ou trocar quando quiser.</p>'+
       '<label>Cor</label>'+
       '<div class="color-swatch-row" id="color-swatches">'+CLASS_COLOR_KEYS.map(function(k){
         return '<div class="color-swatch'+(k===selectedColor?' on':'')+'" data-color="'+k+'" style="background:'+CLASS_COLORS[k].solid+'"></div>';
@@ -1298,15 +1340,23 @@ var firebaseConfig = {
         el.classList.add('on');
       });
     });
+    wireTeacherPicker('-prof', function(name){ selectedProfessor = name; });
+    wireTeacherPicker('-aux', function(name){ selectedAuxiliar = name; });
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
       if(!name){ showToast('Digite o nome da turma'); return; }
+      var profField = document.getElementById('f-teacher-prof');
+      var profValue = profField ? profField.value.trim() : selectedProfessor;
+      var auxField = document.getElementById('f-teacher-aux');
+      var auxValue = auxField ? auxField.value.trim() : selectedAuxiliar;
       var obj = {
         id: id || uid(),
         name: name,
         ageRange: document.getElementById('f-age').value.trim(),
         revista: document.getElementById('f-revista').value.trim(),
+        professor: profValue,
+        auxiliar: auxValue,
         color: selectedColor
       };
       if(id){
@@ -1529,6 +1579,7 @@ var firebaseConfig = {
       var pal = CLASS_COLORS[c.color] || CLASS_COLORS.roxo;
       var lessons = DATA.lessons.filter(function(l){return l.classId===c.id;});
       var nextIdx = lessons.findIndex(function(l){return !l.done;});
+      var isExpanded = !!expandedClasses[c.id];
       var rows = lessons.map(function(l, i){
         var isNext = i===nextIdx;
         var linkedSched = scheduleForLesson(l.id);
@@ -1544,23 +1595,45 @@ var firebaseConfig = {
           '<span class="lesson-check'+(l.done?' on':'')+'" style="'+(l.done?'background:'+pal.solid:'')+'" onclick="event.stopPropagation();window.__toggleLesson(\''+l.id+'\')">'+(l.done?'✓':'')+'</span>'+
         '</div>';
       }).join('');
+      var staffLine = (c.professor||c.auxiliar)
+        ? '<p class="class-revista">'+
+            (c.professor?'<b>Prof:</b> '+escapeHtml(c.professor):'')+
+            (c.professor&&c.auxiliar?' · ':'')+
+            (c.auxiliar?'<b>Aux:</b> '+escapeHtml(c.auxiliar):'')+
+          '</p>'
+        : '';
       return '<div class="class-card">'+
-        '<div class="class-head" style="cursor:pointer" onclick="window.__openClass(\''+c.id+'\')">'+
+        '<div class="class-head" style="cursor:pointer" onclick="window.__toggleClassExpand(\''+c.id+'\')">'+
           '<div>'+
             '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+'">'+escapeHtml(c.name)+'</span>'+
             (c.ageRange?'<span class="class-age">'+escapeHtml(c.ageRange)+'</span>':'')+
             (c.revista?'<p class="class-revista"><b>Revista:</b> '+escapeHtml(c.revista)+'</p>':'')+
+            staffLine+
           '</div>'+
-          '<span class="pill">'+lessons.filter(function(l){return l.done;}).length+'/'+lessons.length+'</span>'+
+          '<div style="display:flex;align-items:center;gap:6px;flex:none">'+
+            '<span class="pill">'+lessons.filter(function(l){return l.done;}).length+'/'+lessons.length+'</span>'+
+            '<button class="icon-btn" style="width:28px;height:28px;border:none" onclick="event.stopPropagation();window.__openClass(\''+c.id+'\')" aria-label="Editar turma">'+
+              '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'+
+            '</button>'+
+            '<span style="color:var(--ink-soft);font-size:13px">'+(isExpanded?'▲':'▼')+'</span>'+
+          '</div>'+
         '</div>'+
-        (lessons.length ? rows : '<p class="muted" style="padding:0 16px 10px">Nenhuma aula cadastrada nesta turma.</p>')+
-        '<div class="class-add-row" style="display:flex;gap:8px;flex-wrap:wrap">'+
-          '<button class="btn small" onclick="window.__addLesson(\''+c.id+'\')">+ Adicionar aula</button>'+
-          '<button class="btn small" onclick="window.__openRevista(\''+c.id+'\')">+ Revista (em lote)</button>'+
-        '</div>'+
+        (isExpanded
+          ? (lessons.length ? rows : '<p class="muted" style="padding:0 16px 10px">Nenhuma aula cadastrada nesta turma.</p>')+
+            '<div class="class-add-row" style="display:flex;gap:8px;flex-wrap:wrap">'+
+              '<button class="btn small" onclick="window.__addLesson(\''+c.id+'\')">+ Adicionar aula</button>'+
+              '<button class="btn small" onclick="window.__openRevista(\''+c.id+'\')">+ Revista (em lote)</button>'+
+            '</div>'
+          : '')+
       '</div>';
     }).join('');
   }
+
+  function toggleClassExpand(id){
+    expandedClasses[id] = !expandedClasses[id];
+    renderLessons();
+  }
+  window.__toggleClassExpand = toggleClassExpand;
 
   // ---------- MENSAGENS (central de comunicação) ----------
   var MESSAGE_TEMPLATES = [
@@ -2035,7 +2108,6 @@ var firebaseConfig = {
   function renderAll(){
     if(!loaded) return;
     renderDashboard();
-    renderQuickDates();
     renderSchedule();
     renderLessons();
     renderReminders();

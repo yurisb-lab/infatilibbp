@@ -353,7 +353,7 @@
       <div class="section-title">Escala do próximo domingo</div>
       <div id="next-schedule-box"></div>
 
-      <div class="section-title">Mensagens pendentes</div>
+      <div class="section-title">Lembretes pendentes</div>
       <div id="pending-reminders-box"></div>
 
       <div class="section-title">Esta semana</div>
@@ -376,18 +376,23 @@
       <div id="aulas-list"></div>
     </div>
 
-    <!-- COMUNICAÇÃO -->
-    <div class="view" id="view-comunicacao">
-      <div class="section-title">Modelos rápidos <span class="muted">toque para começar</span></div>
-      <div id="quick-templates" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:4px"></div>
-      <div class="section-title">Central de mensagens <span class="muted" id="mensagens-count"></span></div>
-      <div id="mensagens-list"></div>
+    <!-- LEMBRETES -->
+    <div class="view" id="view-lembretes">
+      <div class="section-title">Lembretes <span class="muted" id="lembretes-count"></span></div>
+      <div id="lembretes-list"></div>
     </div>
 
     <!-- VOLUNTÁRIOS -->
     <div class="view" id="view-voluntarios">
       <div class="section-title">Voluntários <span class="muted" id="voluntarios-count"></span></div>
       <div id="voluntarios-list"></div>
+    </div>
+
+    <!-- CRIANÇAS -->
+    <div class="view" id="view-criancas">
+      <div class="section-title">Crianças <span class="muted" id="criancas-count"></span></div>
+      <input id="criancas-search" placeholder="Buscar criança..." style="margin-bottom:12px">
+      <div id="criancas-list"></div>
     </div>
 
   </div>
@@ -407,13 +412,17 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
       Aulas
     </button>
-    <button class="navbtn" data-view="comunicacao">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Comunicação
+    <button class="navbtn" data-view="lembretes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      Lembretes
     </button>
     <button class="navbtn" data-view="voluntarios">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16.5 4.5a3.2 3.2 0 0 1 0 6.3"/><path d="M17.5 14.3c2.6.5 4 2.6 4 5.7"/></svg>
       Equipe
+    </button>
+    <button class="navbtn" data-view="criancas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="7" r="3.2"/><path d="M5.5 21c0-4 3-7 6.5-7s6.5 3 6.5 7"/><path d="M9.5 4.2c-.5-.6-1.3-1-2.2-1a2.7 2.7 0 0 0 0 5.4"/></svg>
+      Crianças
     </button>
   </div>
 
@@ -441,107 +450,8 @@ var firebaseConfig = {
 <script>
 (function(){
 
-  var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], messages: [], settings: { reminderDay: 5 } };
+  var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [], children: [], settings: { reminderDay: 5 } };
   var loaded = false;
-
-  var AUDIENCE_OPTS = [
-    { key:'todos', label:'Todos os voluntários' },
-    { key:'professores', label:'Professores' },
-    { key:'auxiliares', label:'Auxiliares' },
-    { key:'pregadores', label:'Pregadores' },
-    { key:'turma', label:'Uma turma específica' },
-    { key:'pais', label:'Pais e responsáveis' }
-  ];
-
-  function audienceRoleMap(key){
-    if(key==='professores') return 'Professor';
-    if(key==='auxiliares') return 'Auxiliar';
-    if(key==='pregadores') return 'Pregador';
-    return null;
-  }
-
-  function recipientsForAudience(type, classId){
-    if(type==='pais') return [];
-    var role = audienceRoleMap(type);
-    return DATA.volunteers.filter(function(v){
-      if(type==='turma'){
-        if(!classId) return false;
-        return !v.classIds || !v.classIds.length || v.classIds.indexOf(classId)>=0;
-      }
-      if(role) return v.role===role;
-      return true;
-    });
-  }
-
-  function audienceLabel(type, classId){
-    var opt = AUDIENCE_OPTS.find(function(o){return o.key===type;});
-    var base = opt ? opt.label : 'Todos os voluntários';
-    if((type==='turma'||type==='pais') && classId){
-      var c = DATA.classes.find(function(x){return x.id===classId;});
-      if(c) base += ' — ' + c.name;
-    }
-    return base;
-  }
-
-  function tplLembreteEscala(ctx){
-    var lines = [];
-    lines.push('📌 Ministério Infantil' + (ctx.date?(' — '+fmtDate(ctx.date)):''));
-    if(ctx.className) lines.push('Turma: ' + ctx.className + (ctx.time?' · '+ctx.time:''));
-    if(ctx.names && ctx.names.length) lines.push('Escalados: ' + ctx.names.join(', '));
-    if(ctx.lesson){
-      lines.push('');
-      lines.push('Aula: ' + ctx.lesson.title);
-      if(ctx.lesson.verse) lines.push('Versículo: ' + ctx.lesson.verse);
-      if(ctx.lesson.materials) lines.push('Materiais: ' + ctx.lesson.materials);
-    }
-    lines.push('');
-    lines.push('Contamos com você! 🙏');
-    return lines.join('\n');
-  }
-  function tplAgradecimento(ctx){
-    return '🙏 Queremos agradecer de coração pelo seu serviço no Ministério Infantil'+(ctx.className?' na turma '+ctx.className:'')+'! Seu carinho e dedicação fazem toda a diferença na vida das crianças. Deus abençoe você! 💛';
-  }
-  function tplConvocacao(ctx){
-    var lines = [];
-    lines.push('📢 Convocação — Reunião do Ministério Infantil');
-    if(ctx.date) lines.push('Data: ' + fmtDate(ctx.date));
-    lines.push('');
-    lines.push('Precisamos da presença de todos para alinharmos os próximos passos do ministério. Contamos com você!');
-    return lines.join('\n');
-  }
-  function tplCancelamento(ctx){
-    var lines = [];
-    lines.push('⚠️ Aviso importante');
-    lines.push('O culto'+(ctx.className?' da turma '+ctx.className:'')+(ctx.date?' do dia '+fmtDateShort(ctx.date):'')+' foi cancelado.');
-    lines.push('');
-    lines.push('Qualquer novidade, avisaremos por aqui. Obrigado pela compreensão!');
-    return lines.join('\n');
-  }
-  function tplAniversario(ctx){
-    return '🎉 Hoje é um dia especial! Queremos desejar um feliz aniversário'+(ctx.name?' para '+ctx.name:'')+'! Que Deus continue abençoando sua vida grandemente. 🎂💛';
-  }
-  function tplAvisoGeral(ctx){
-    return '📣 Aviso — Ministério Infantil\n\n[Escreva aqui o aviso...]';
-  }
-  var TEMPLATES = {
-    lembrete: { label:'Lembrete de escala', icon:'📌', build: tplLembreteEscala },
-    agradecimento: { label:'Agradecimento', icon:'🙏', build: tplAgradecimento },
-    convocacao: { label:'Convocação p/ reunião', icon:'📢', build: tplConvocacao },
-    cancelamento: { label:'Cancelamento de culto', icon:'⚠️', build: tplCancelamento },
-    aniversario: { label:'Aniversário', icon:'🎉', build: tplAniversario },
-    aviso: { label:'Aviso geral', icon:'📣', build: tplAvisoGeral }
-  };
-
-  function migrateRemindersToMessages(data){
-    if(data.reminders && data.reminders.length && (!data.messages || !data.messages.length)){
-      data.messages = data.reminders.map(function(r){
-        return { id:r.id, title:r.title, date:r.date, message:r.message, audienceType:'todos', audienceClassId:'' };
-      });
-    }
-    if(!data.messages) data.messages = [];
-    delete data.reminders;
-    return data;
-  }
 
   var CLASS_COLORS = {
     roxo:    { tint:'var(--purple-tint)', text:'#5B3A9C', solid:'var(--purple)' },
@@ -673,17 +583,15 @@ var firebaseConfig = {
       var docRef = await db.collection('ministerio').doc('dados').get();
       if(docRef.exists){
         var parsed = JSON.parse(docRef.data().json);
-        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],messages:[],settings:{reminderDay:5}}, parsed);
+        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],children:[],settings:{reminderDay:5}}, parsed);
         if(!DATA.settings) DATA.settings = { reminderDay: 5 };
-        migrateRemindersToMessages(DATA);
       }
       ensureClassesSeed();
       db.collection('ministerio').doc('dados').onSnapshot(function(doc){
         if(doc.exists && loaded){
           var fresh = JSON.parse(doc.data().json);
-          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],messages:[],settings:{reminderDay:5}}, fresh);
+          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],children:[],settings:{reminderDay:5}}, fresh);
           if(!DATA.settings) DATA.settings = { reminderDay: 5 };
-          migrateRemindersToMessages(DATA);
           ensureClassesSeed();
           renderAll();
         }
@@ -733,11 +641,18 @@ var firebaseConfig = {
   document.getElementById('fab-add').addEventListener('click', function(){
     if(currentView==='escalas') openScheduleForm();
     else if(currentView==='aulas') openClassForm();
-    else if(currentView==='comunicacao') openMessageForm();
+    else if(currentView==='lembretes') openReminderForm();
     else if(currentView==='voluntarios') openVolunteerForm();
+    else if(currentView==='criancas') openChildForm();
     else openScheduleForm();
   });
   document.getElementById('btn-new-class').addEventListener('click', function(){ openClassForm(); });
+
+  var childrenSearchTerm = '';
+  document.getElementById('criancas-search').addEventListener('input', function(e){
+    childrenSearchTerm = e.target.value.trim().toLowerCase();
+    renderChildren();
+  });
 
   // ---------- OVERLAY / SHEET ----------
   var overlay = document.getElementById('overlay');
@@ -906,6 +821,130 @@ var firebaseConfig = {
     }).join('');
   }
   window.__openVol = openVolunteerForm;
+
+  // ---------- CRIANÇAS ----------
+  function calcAge(birthISO){
+    if(!birthISO) return null;
+    var parts = birthISO.split('-');
+    if(parts.length<3) return null;
+    var b = new Date(parts[0], parts[1]-1, parts[2]);
+    var today = new Date();
+    var age = today.getFullYear() - b.getFullYear();
+    var m = today.getMonth() - b.getMonth();
+    if(m<0 || (m===0 && today.getDate()<b.getDate())) age--;
+    return age;
+  }
+
+  function fmtAge(birthISO){
+    var age = calcAge(birthISO);
+    if(age===null) return '';
+    if(age<0) return '';
+    if(age===0){
+      // mostra em meses para bebês
+      var parts = birthISO.split('-');
+      var b = new Date(parts[0], parts[1]-1, parts[2]);
+      var today = new Date();
+      var months = (today.getFullYear()-b.getFullYear())*12 + (today.getMonth()-b.getMonth());
+      if(today.getDate()<b.getDate()) months--;
+      if(months<1) return 'recém-nascido(a)';
+      return months + (months===1?' mês':' meses');
+    }
+    return age + (age===1?' ano':' anos');
+  }
+
+  function openChildForm(id){
+    var c = id ? DATA.children.find(function(x){return x.id===id;}) : {name:'', birthdate:'', classId:'', guardians:'', phones:'', allergies:'', notes:''};
+    openSheet(
+      '<h2>'+(id?'Editar criança':'Nova criança')+'</h2>'+
+      '<label>Nome</label><input id="f-name" value="'+escapeAttr(c.name)+'" placeholder="Nome da criança">'+
+      '<label>Data de nascimento</label><input type="date" id="f-birth" value="'+(c.birthdate||'')+'">'+
+      '<label>Turma</label>'+
+      (DATA.classes.length
+        ? '<select id="f-classid"><option value="">— Selecione uma turma —</option>'+
+            DATA.classes.map(function(cl){
+              return '<option value="'+cl.id+'"'+(c.classId===cl.id?' selected':'')+'>'+escapeHtml(cl.name)+'</option>';
+            }).join('')+
+          '</select>'
+        : '<p class="muted">Cadastre turmas na aba Aulas para poder vincular esta criança a uma turma.</p>')+
+      '<label>Responsáveis</label><textarea id="f-guardians" placeholder="Ex: Maria Silva (mãe), João Silva (pai)">'+escapeHtml(c.guardians||'')+'</textarea>'+
+      '<label>Telefones</label><input id="f-phones" value="'+escapeAttr(c.phones||'')+'" placeholder="Ex: (85) 90000-0000">'+
+      '<label>Alergias (opcional)</label><textarea id="f-allergies" placeholder="Ex: alergia a amendoim">'+escapeHtml(c.allergies||'')+'</textarea>'+
+      '<label>Observações (opcional)</label><textarea id="f-notes" placeholder="Outras informações relevantes">'+escapeHtml(c.notes||'')+'</textarea>'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var name = document.getElementById('f-name').value.trim();
+      if(!name){ showToast('Digite o nome da criança'); return; }
+      var classSelectEl = document.getElementById('f-classid');
+      var obj = {
+        id: id || uid(),
+        name: name,
+        birthdate: document.getElementById('f-birth').value,
+        classId: classSelectEl ? classSelectEl.value : (c.classId||''),
+        guardians: document.getElementById('f-guardians').value.trim(),
+        phones: document.getElementById('f-phones').value.trim(),
+        allergies: document.getElementById('f-allergies').value.trim(),
+        notes: document.getElementById('f-notes').value.trim()
+      };
+      if(id){
+        var idx = DATA.children.findIndex(function(x){return x.id===id;});
+        DATA.children[idx] = obj;
+      } else {
+        DATA.children.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Criança salva');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.children = DATA.children.filter(function(x){return x.id!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Removida');
+      };
+    }
+  }
+  window.__openChild = openChildForm;
+
+  function renderChildren(){
+    var list = document.getElementById('criancas-list');
+    document.getElementById('criancas-count').textContent = DATA.children.length ? '('+DATA.children.length+')' : '';
+    var items = DATA.children.slice();
+    if(childrenSearchTerm){
+      items = items.filter(function(c){
+        return (c.name||'').toLowerCase().indexOf(childrenSearchTerm)>=0 ||
+          (c.guardians||'').toLowerCase().indexOf(childrenSearchTerm)>=0;
+      });
+    }
+    if(!DATA.children.length){
+      list.innerHTML = '<div class="card empty">Nenhuma criança cadastrada ainda.<br>Toque em + para adicionar.</div>';
+      return;
+    }
+    if(!items.length){
+      list.innerHTML = '<div class="card empty">Nenhuma criança encontrada para esta busca.</div>';
+      return;
+    }
+    items.sort(function(a,b){return a.name.localeCompare(b.name);});
+    list.innerHTML = items.map(function(c){
+      var cls = c.classId ? DATA.classes.find(function(x){return x.id===c.classId;}) : null;
+      var pal = cls ? (CLASS_COLORS[cls.color] || CLASS_COLORS.roxo) : null;
+      var age = fmtAge(c.birthdate);
+      return '<div class="card" onclick="window.__openChild(\''+c.id+'\')" style="cursor:pointer">'+
+        '<div class="row">'+
+          '<p class="card-title" style="margin:0">'+escapeHtml(c.name)+'</p>'+
+          (age?'<span class="pill">'+age+'</span>':'')+
+        '</div>'+
+        (cls?'<p class="card-sub" style="margin-top:2px"><span class="tag" style="background:'+pal.tint+';color:'+pal.text+'">'+escapeHtml(cls.name)+'</span></p>':'')+
+        (c.guardians?'<p class="card-sub" style="margin-top:4px">👤 '+escapeHtml(c.guardians)+'</p>':'')+
+        (c.phones?'<p class="card-sub">📞 '+escapeHtml(c.phones)+'</p>':'')+
+        (c.allergies?'<p class="card-sub" style="color:var(--coral)">⚠️ '+escapeHtml(c.allergies)+'</p>':'')+
+        '</div>';
+    }).join('');
+  }
 
   function teacherChipPicker(selectedName){
     if(!DATA.volunteers.length){
@@ -1447,92 +1486,38 @@ var firebaseConfig = {
     }).join('');
   }
 
-  // ---------- COMUNICAÇÃO (central de mensagens) ----------
-  function openMessageForm(id, prefillMessage, prefillTitle, prefillAudienceType, prefillAudienceClassId){
-    var m = id ? DATA.messages.find(function(x){return x.id===id;}) : {
-      title: prefillTitle||'', date: todayISO(), message: prefillMessage||'',
-      audienceType: prefillAudienceType||'todos', audienceClassId: prefillAudienceClassId||''
-    };
-    var selectedAudience = m.audienceType || 'todos';
-    var selectedClassId = m.audienceClassId || '';
+  // ---------- LEMBRETES ----------
+  function buildMessageFromSchedule(s){
+    var lesson = DATA.lessons.find(function(l){return l.date===s.date;});
+    var names = volunteerNames(s.volunteerIds);
+    var lines = [];
+    lines.push('📌 Ministério Infantil — ' + fmtDate(s.date));
+    lines.push('Turma: ' + s.className + (s.time?' · '+s.time:''));
+    if(names.length) lines.push('Escalados: ' + names.join(', '));
+    if(lesson){
+      lines.push('');
+      lines.push('Aula: ' + lesson.title);
+      if(lesson.verse) lines.push('Versículo: ' + lesson.verse);
+      if(lesson.materials) lines.push('Materiais: ' + lesson.materials);
+    }
+    if(s.notes) { lines.push(''); lines.push(s.notes); }
+    return lines.join('\n');
+  }
 
+  function openReminderForm(id, prefillMessage, prefillTitle){
+    var r = id ? DATA.reminders.find(function(x){return x.id===id;}) : {title: prefillTitle||'', date: todayISO(), message: prefillMessage||''};
     openSheet(
-      '<h2>'+(id?'Editar mensagem':'Nova mensagem')+'</h2>'+
-      '<label>Enviar para</label>'+
-      '<div class="chip-select" id="audience-chips">'+AUDIENCE_OPTS.map(function(o){
-        return '<div class="chip'+(selectedAudience===o.key?' on':'')+'" data-aud="'+o.key+'">'+o.label+'</div>';
-      }).join('')+'</div>'+
-      '<div id="audience-class-wrap" style="margin-top:8px;'+((selectedAudience==='turma'||selectedAudience==='pais')?'':'display:none')+'">'+
-        '<label>Turma</label>'+
-        '<select id="f-audclass">'+
-          '<option value="">— Selecione —</option>'+
-          DATA.classes.map(function(c){return '<option value="'+c.id+'"'+(selectedClassId===c.id?' selected':'')+'>'+escapeHtml(c.name)+'</option>';}).join('')+
-        '</select>'+
-      '</div>'+
-      '<label style="margin-top:14px">Modelo pronto (opcional)</label>'+
-      '<div class="chip-select" id="template-chips">'+Object.keys(TEMPLATES).map(function(k){
-        var t = TEMPLATES[k];
-        return '<div class="chip" data-tpl="'+k+'">'+t.icon+' '+t.label+'</div>';
-      }).join('')+'</div>'+
-      '<label style="margin-top:14px">Título</label><input id="f-title" value="'+escapeAttr(m.title)+'" placeholder="Ex: Lembrete de domingo">'+
-      '<label>Data</label><input type="date" id="f-date" value="'+m.date+'">'+
-      '<label>Mensagem</label><textarea id="f-message" rows="7" placeholder="Escreva a mensagem...">'+escapeHtml(m.message||'')+'</textarea>'+
-      '<div id="recipients-preview" class="muted" style="margin-top:6px;font-size:13px"></div>'+
+      '<h2>'+(id?'Editar lembrete':'Novo lembrete')+'</h2>'+
+      '<label>Título</label><input id="f-title" value="'+escapeAttr(r.title)+'" placeholder="Ex: Lembrete de domingo">'+
+      '<label>Data</label><input type="date" id="f-date" value="'+r.date+'">'+
+      '<label>Mensagem para o grupo</label><textarea id="f-message" rows="6" placeholder="Escreva a mensagem...">'+escapeHtml(r.message||'')+'</textarea>'+
+      '<p class="muted" style="margin-top:4px">Dica: você pode usar uma escala como base — vá em Escalas e toque em "Gerar lembrete" dentro de uma escala.</p>'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
         '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
         '<button class="btn primary" id="f-save">Salvar</button>'+
       '</div>'
     );
-
-    function refreshRecipientsPreview(){
-      var box = document.getElementById('recipients-preview');
-      if(!box) return;
-      if(selectedAudience==='pais'){
-        box.textContent = 'Este app ainda não guarda contatos de pais/responsáveis — use como lembrete do público-alvo.';
-        return;
-      }
-      var recips = recipientsForAudience(selectedAudience, selectedClassId);
-      box.textContent = recips.length ? ('Destinatários: '+recips.map(function(v){return v.name;}).join(', ')) : 'Nenhum voluntário encontrado para este público.';
-    }
-    refreshRecipientsPreview();
-
-    document.getElementById('audience-chips').querySelectorAll('.chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        selectedAudience = c.getAttribute('data-aud');
-        document.getElementById('audience-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
-        c.classList.add('on');
-        document.getElementById('audience-class-wrap').style.display = (selectedAudience==='turma'||selectedAudience==='pais') ? '' : 'none';
-        refreshRecipientsPreview();
-      });
-    });
-    var audClassEl = document.getElementById('f-audclass');
-    if(audClassEl){
-      audClassEl.addEventListener('change', function(){
-        selectedClassId = audClassEl.value;
-        refreshRecipientsPreview();
-      });
-    }
-    document.getElementById('template-chips').querySelectorAll('.chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        var key = c.getAttribute('data-tpl');
-        var t = TEMPLATES[key];
-        if(!t) return;
-        document.getElementById('template-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
-        c.classList.add('on');
-        var cls = selectedClassId ? DATA.classes.find(function(x){return x.id===selectedClassId;}) : null;
-        var recips = recipientsForAudience(selectedAudience, selectedClassId);
-        var ctx = {
-          className: cls ? cls.name : '',
-          date: document.getElementById('f-date').value,
-          names: recips.map(function(v){return v.name;})
-        };
-        document.getElementById('f-message').value = t.build(ctx);
-        var titleField = document.getElementById('f-title');
-        if(!titleField.value.trim()) titleField.value = t.label + (cls?' — '+cls.name:'');
-      });
-    });
-
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var title = document.getElementById('f-title').value.trim();
@@ -1541,49 +1526,37 @@ var firebaseConfig = {
         id: id || uid(),
         title: title,
         date: document.getElementById('f-date').value,
-        audienceType: selectedAudience,
-        audienceClassId: selectedClassId,
         message: document.getElementById('f-message').value
       };
       if(id){
-        var idx = DATA.messages.findIndex(function(x){return x.id===id;});
-        DATA.messages[idx] = obj;
+        var idx = DATA.reminders.findIndex(function(x){return x.id===id;});
+        DATA.reminders[idx] = obj;
       } else {
-        DATA.messages.push(obj);
+        DATA.reminders.push(obj);
       }
       save(); renderAll(); closeSheet();
-      showToast('Mensagem salva');
+      showToast('Lembrete salvo');
     };
     if(id){
       document.getElementById('f-del').onclick = function(){
-        DATA.messages = DATA.messages.filter(function(x){return x.id!==id;});
+        DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
         save(); renderAll(); closeSheet();
-        showToast('Removida');
+        showToast('Removido');
       };
     }
   }
-  window.__openMsg = openMessageForm;
 
-  function openMessageView(id){
-    var m = DATA.messages.find(function(x){return x.id===id;});
-    if(!m) return;
-    var recips = m.audienceType==='pais' ? [] : recipientsForAudience(m.audienceType, m.audienceClassId);
+  function openReminderView(id){
+    var r = DATA.reminders.find(function(x){return x.id===id;});
+    if(!r) return;
     openSheet(
-      '<h2>'+escapeHtml(m.title)+'</h2>'+
-      '<p class="muted">'+fmtDate(m.date)+' · '+escapeHtml(audienceLabel(m.audienceType, m.audienceClassId))+'</p>'+
-      '<div class="msg-preview" id="msg-text">'+escapeHtml(m.message)+'</div>'+
+      '<h2>'+escapeHtml(r.title)+'</h2>'+
+      '<p class="muted">'+fmtDate(r.date)+'</p>'+
+      '<div class="msg-preview" id="msg-text">'+escapeHtml(r.message)+'</div>'+
       '<div class="sheet-actions">'+
         '<button class="btn" id="f-copy">Copiar texto</button>'+
         '<button class="btn primary" id="f-wa">Abrir no WhatsApp</button>'+
       '</div>'+
-      (recips.length ? '<label style="margin-top:16px">Enviar individualmente</label><div id="recip-list">'+
-        recips.map(function(v){
-          return '<div class="row" style="padding:6px 0">'+
-            '<span>'+escapeHtml(v.name)+'</span>'+
-            (v.phone?'<button class="btn small" data-phone="'+escapeAttr(v.phone)+'" data-wa-ind>WhatsApp</button>':'<span class="muted" style="font-size:12px">sem telefone</span>')+
-          '</div>';
-        }).join('')+
-      '</div>' : (m.audienceType==='pais' ? '<p class="muted" style="margin-top:12px">Sem contatos cadastrados para pais/responsáveis — envie manualmente pelo grupo da turma.</p>' : ''))+
       '<div class="sheet-actions" style="margin-top:8px">'+
         '<button class="btn ghost" id="f-edit">Editar</button>'+
         '<button class="btn danger-ghost" id="f-del">Excluir</button>'+
@@ -1591,22 +1564,16 @@ var firebaseConfig = {
       '</div>'
     );
     document.getElementById('f-close').onclick = closeSheet;
-    document.getElementById('f-edit').onclick = function(){ openMessageForm(id); };
+    document.getElementById('f-edit').onclick = function(){ openReminderForm(id); };
     document.getElementById('f-del').onclick = function(){
-      DATA.messages = DATA.messages.filter(function(x){return x.id!==id;});
+      DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
       save(); renderAll(); closeSheet();
-      showToast('Removida');
+      showToast('Removido');
     };
-    document.getElementById('f-copy').onclick = function(){ copyText(m.message); };
+    document.getElementById('f-copy').onclick = function(){ copyText(r.message); };
     document.getElementById('f-wa').onclick = function(){
-      window.open('https://wa.me/?text='+encodeURIComponent(m.message), '_blank');
+      window.open('https://wa.me/?text='+encodeURIComponent(r.message), '_blank');
     };
-    sheet.querySelectorAll('[data-wa-ind]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var phone = btn.getAttribute('data-phone').replace(/\D/g,'');
-        window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(m.message), '_blank');
-      });
-    });
   }
 
   function copyText(text){
@@ -1628,58 +1595,38 @@ var firebaseConfig = {
     document.body.removeChild(ta);
   }
 
-  function renderMessages(){
-    var list = document.getElementById('mensagens-list');
-    if(!list) return;
-    var sorted = DATA.messages.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
-    document.getElementById('mensagens-count').textContent = sorted.length ? '('+sorted.length+')' : '';
+  function renderReminders(){
+    var list = document.getElementById('lembretes-list');
+    var sorted = DATA.reminders.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    document.getElementById('lembretes-count').textContent = sorted.length ? '('+sorted.length+')' : '';
     if(!sorted.length){
-      list.innerHTML = '<div class="card empty">Nenhuma mensagem criada ainda.<br>Toque em + para escrever a primeira, ou use um modelo rápido acima.</div>';
+      list.innerHTML = '<div class="card empty">Nenhum lembrete criado ainda.<br>Toque em + para escrever um.</div>';
       return;
     }
     var today = todayISO();
-    list.innerHTML = sorted.map(function(m){
-      var isPast = m.date && m.date < today;
-      return '<div class="card" onclick="window.__viewMsg(\''+m.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
-        '<div class="row"><p class="card-title">'+escapeHtml(m.title)+'</p><span class="pill coral">'+fmtDateShort(m.date)+'</span></div>'+
-        '<p class="card-sub" style="margin-top:2px">'+escapeHtml(audienceLabel(m.audienceType, m.audienceClassId))+'</p>'+
-        '<p class="card-sub" style="margin-top:4px">'+escapeHtml((m.message||'').slice(0,70))+((m.message||'').length>70?'…':'')+'</p>'+
+    list.innerHTML = sorted.map(function(r){
+      var isPast = r.date < today;
+      return '<div class="card" onclick="window.__viewRem(\''+r.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
+        '<div class="row"><p class="card-title">'+escapeHtml(r.title)+'</p><span class="pill coral">'+fmtDateShort(r.date)+'</span></div>'+
+        '<p class="card-sub" style="margin-top:4px">'+escapeHtml((r.message||'').slice(0,70))+((r.message||'').length>70?'…':'')+'</p>'+
         '</div>';
     }).join('');
   }
-  window.__viewMsg = openMessageView;
+  window.__viewRem = openReminderView;
 
-  function renderQuickTemplates(){
-    var box = document.getElementById('quick-templates');
-    if(!box) return;
-    box.innerHTML = Object.keys(TEMPLATES).map(function(k){
-      var t = TEMPLATES[k];
-      return '<div class="chip" style="flex:none;white-space:nowrap" onclick="window.__quickTpl(\''+k+'\')">'+t.icon+' '+t.label+'</div>';
-    }).join('');
-  }
-  window.__quickTpl = function(key){
-    openMessageForm();
-    var chip = document.querySelector('#template-chips .chip[data-tpl="'+key+'"]');
-    if(chip) chip.click();
-  };
-
-  // schedule -> generate message shortcut
-  function generateMessageFromSchedule(id){
+  // schedule -> generate reminder shortcut
+  function generateReminderFromSchedule(id){
     var s = DATA.schedule.find(function(x){return x.id===id;});
     if(!s) return;
-    var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
-    var lesson = matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : DATA.lessons.find(function(l){return l.date===s.date;});
-    var names = volunteerNames(s.volunteerIds);
-    var ctx = { className: s.className, date: s.date, time: s.time, names: names, lesson: lesson };
-    var msg = TEMPLATES.lembrete.build(ctx);
+    var msg = buildMessageFromSchedule(s);
     closeSheet();
     setTimeout(function(){
-      openMessageForm(null, msg, 'Lembrete — ' + s.className + ' ' + fmtDateShort(s.date), matchedClass?'turma':'todos', matchedClass?matchedClass.id:'');
+      openReminderForm(null, msg, 'Lembrete — ' + s.className + ' ' + fmtDateShort(s.date));
     }, 150);
   }
-  window.__genMsg = generateMessageFromSchedule;
+  window.__genRem = generateReminderFromSchedule;
 
-  // add "Gerar mensagem" button inside schedule edit sheet
+  // add "Gerar lembrete" button inside schedule edit sheet
   var origOpenScheduleForm = openScheduleForm;
 
   // ---------- INÍCIO (dashboard) ----------
@@ -1710,19 +1657,19 @@ var firebaseConfig = {
           (lesson?'<p class="card-sub" style="margin-top:8px">📖 '+escapeHtml(lesson.title)+'</p>':'')+
           '<div class="sheet-actions" style="margin-top:12px">'+
             '<button class="btn small" onclick="window.__openSched(\''+s.id+'\')">Ver escala</button>'+
-            '<button class="btn small primary" onclick="window.__genMsg(\''+s.id+'\')">Gerar mensagem</button>'+
+            '<button class="btn small primary" onclick="window.__genRem(\''+s.id+'\')">Gerar lembrete</button>'+
           '</div>'+
         '</div>';
       }).join('');
     }
 
     var pendBox = document.getElementById('pending-reminders-box');
-    var pending = DATA.messages.filter(function(r){return r.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    var pending = DATA.reminders.filter(function(r){return r.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
     if(!pending.length){
-      pendBox.innerHTML = '<div class="card empty">Sem mensagens pendentes.</div>';
+      pendBox.innerHTML = '<div class="card empty">Sem lembretes pendentes.</div>';
     } else {
       pendBox.innerHTML = pending.slice(0,3).map(function(r){
-        return '<div class="card row" onclick="window.__viewMsg(\''+r.id+'\')" style="cursor:pointer">'+
+        return '<div class="card row" onclick="window.__viewRem(\''+r.id+'\')" style="cursor:pointer">'+
           '<div><p class="card-title">'+escapeHtml(r.title)+'</p><p class="card-sub">'+fmtDate(r.date)+'</p></div>'+
           '<span class="pill coral">enviar</span></div>';
       }).join('');
@@ -1756,13 +1703,13 @@ var firebaseConfig = {
     renderQuickDates();
     renderSchedule();
     renderLessons();
-    renderQuickTemplates();
-    renderMessages();
+    renderReminders();
     renderVolunteers();
+    renderChildren();
     checkReminderNotification();
   }
 
-  // patch schedule sheet to add "gerar mensagem" button when editing existing
+  // patch schedule sheet to add "gerar lembrete" button when editing existing
   var _openScheduleForm = openScheduleForm;
   openScheduleForm = function(id){
     _openScheduleForm(id);
@@ -1773,7 +1720,7 @@ var firebaseConfig = {
         genBtn.className = 'btn block';
         genBtn.textContent = 'Gerar mensagem de lembrete';
         genBtn.style.marginTop = '10px';
-        genBtn.onclick = function(){ generateMessageFromSchedule(id); };
+        genBtn.onclick = function(){ generateReminderFromSchedule(id); };
         sheet.appendChild(genBtn);
       }
     }

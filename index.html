@@ -680,6 +680,22 @@ var firebaseConfig = {
   }
   window.__openVol = openVolunteerForm;
 
+  function teacherChipPicker(selectedName){
+    if(!DATA.volunteers.length){
+      return '<input id="f-teacher" value="'+escapeAttr(selectedName||'')+'" placeholder="Nome do professor(a)">';
+    }
+    var isCustom = selectedName && !DATA.volunteers.some(function(v){return v.name===selectedName;});
+    var html = '<div class="chip-select" id="teacher-chips">';
+    html += DATA.volunteers.map(function(v){
+      var on = v.name===selectedName;
+      return '<div class="chip'+(on?' on':'')+'" data-name="'+escapeAttr(v.name)+'">'+escapeHtml(v.name)+'</div>';
+    }).join('');
+    html += '<div class="chip'+(isCustom?' on':'')+'" data-name="__custom">Outro(a)</div>';
+    html += '</div>';
+    html += '<input id="f-teacher-custom" style="margin-top:8px;'+(isCustom?'':'display:none')+'" placeholder="Nome do professor(a)" value="'+escapeAttr(isCustom?selectedName:'')+'">';
+    return html;
+  }
+
   function volunteerChipPicker(selectedIds){
     if(!DATA.volunteers.length) return '<p class="muted">Cadastre voluntários na aba Equipe primeiro.</p>';
     return '<div class="chip-select" id="vol-chips">' + DATA.volunteers.map(function(v){
@@ -902,8 +918,8 @@ var firebaseConfig = {
       '<div class="field-row"><div><label>Ícone (emoji, opcional)</label><input id="f-icon" value="'+escapeAttr(l.icon||'')+'" placeholder="💗"></div>'+
       '<div style="flex:3"><label>Assunto da aula</label><input id="f-title" value="'+escapeAttr(l.title)+'" placeholder="Ex: A criação do mundo"></div></div>'+
       '<label>Versículo (opcional)</label><input id="f-verse" value="'+escapeAttr(l.verse||'')+'" placeholder="Ex: Gênesis 1:1">'+
-      '<div class="field-row"><div><label>Professor(a)</label><input id="f-teacher" value="'+escapeAttr(l.teacher||'')+'" placeholder="Nome"></div>'+
-      '<div><label>Data</label><input type="date" id="f-date" value="'+(l.date||'')+'"></div></div>'+
+      '<label>Professor(a)</label>'+teacherChipPicker(l.teacher||'')+
+      '<label>Data</label><input type="date" id="f-date" value="'+(l.date||'')+'">'+
       '<label>Materiais necessários (opcional)</label><textarea id="f-materials" placeholder="Ex: cartolina, EVA, cola">'+escapeHtml(l.materials||'')+'</textarea>'+
       '<label>Atividades (opcional)</label><textarea id="f-activities" placeholder="Ex: dinâmica, desenho, versículo para decorar">'+escapeHtml(l.activities||'')+'</textarea>'+
       '<label>Observações (opcional)</label><textarea id="f-notes">'+escapeHtml(l.notes||'')+'</textarea>'+
@@ -913,17 +929,47 @@ var firebaseConfig = {
         '<button class="btn primary" id="f-save">Salvar</button>'+
       '</div>'
     );
+    var selectedTeacher = l.teacher || '';
+    var teacherChips = document.getElementById('teacher-chips');
+    if(teacherChips){
+      teacherChips.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          teacherChips.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          c.classList.add('on');
+          var name = c.getAttribute('data-name');
+          var customInput = document.getElementById('f-teacher-custom');
+          if(name==='__custom'){
+            customInput.style.display = '';
+            customInput.focus();
+            selectedTeacher = customInput.value.trim();
+          } else {
+            customInput.style.display = 'none';
+            selectedTeacher = name;
+          }
+        });
+      });
+      var customInputInit = document.getElementById('f-teacher-custom');
+      if(customInputInit){
+        customInputInit.addEventListener('input', function(){
+          if(teacherChips.querySelector('.chip[data-name="__custom"]').classList.contains('on')){
+            selectedTeacher = customInputInit.value.trim();
+          }
+        });
+      }
+    }
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var title = document.getElementById('f-title').value.trim();
       if(!title){ showToast('Digite o assunto da aula'); return; }
+      var teacherField = document.getElementById('f-teacher');
+      var teacherValue = teacherField ? teacherField.value.trim() : selectedTeacher;
       var obj = {
         id: l.id || uid(),
         classId: l.classId,
         icon: document.getElementById('f-icon').value.trim(),
         title: title,
         verse: document.getElementById('f-verse').value.trim(),
-        teacher: document.getElementById('f-teacher').value.trim(),
+        teacher: teacherValue,
         date: document.getElementById('f-date').value,
         materials: document.getElementById('f-materials').value.trim(),
         activities: document.getElementById('f-activities').value.trim(),
@@ -949,6 +995,72 @@ var firebaseConfig = {
   }
   window.__openLesson = openLessonForm;
   window.__addLesson = function(classId){ openLessonForm(null, classId); };
+
+  // ---------- REVISTA (adicionar revista + várias aulas de uma vez) ----------
+  function openRevistaForm(classId){
+    var c = DATA.classes.find(function(x){return x.id===classId;});
+    if(!c) return;
+    openSheet(
+      '<h2>Adicionar revista e aulas</h2>'+
+      '<label>Nome da revista / currículo</label><input id="f-revista" value="'+escapeAttr(c.revista||'')+'" placeholder="Ex: Heróis da Fé">'+
+      '<label>Aulas (uma por linha)</label><textarea id="f-lessons" rows="8" placeholder="A criação do mundo\nAdão e Eva\nO dilúvio"></textarea>'+
+      '<p class="muted" style="margin-top:6px">Dica: para definir um ícone, use "emoji | título" em cada linha. Ex: 🌎 | A criação do mundo</p>'+
+      '<label>Professor(a) padrão (opcional)</label>'+teacherChipPicker('')+
+      '<div class="sheet-actions">'+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Adicionar</button>'+
+      '</div>'
+    );
+    var selectedTeacher = '';
+    var teacherChips = document.getElementById('teacher-chips');
+    if(teacherChips){
+      teacherChips.querySelectorAll('.chip').forEach(function(chipEl){
+        chipEl.addEventListener('click', function(){
+          teacherChips.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          chipEl.classList.add('on');
+          var name = chipEl.getAttribute('data-name');
+          var customInput = document.getElementById('f-teacher-custom');
+          if(name==='__custom'){
+            customInput.style.display = '';
+            customInput.focus();
+            selectedTeacher = customInput.value.trim();
+          } else {
+            customInput.style.display = 'none';
+            selectedTeacher = name;
+          }
+        });
+      });
+      var customInputInit = document.getElementById('f-teacher-custom');
+      if(customInputInit){
+        customInputInit.addEventListener('input', function(){
+          if(teacherChips.querySelector('.chip[data-name="__custom"]').classList.contains('on')){
+            selectedTeacher = customInputInit.value.trim();
+          }
+        });
+      }
+    }
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var revista = document.getElementById('f-revista').value.trim();
+      var teacherField = document.getElementById('f-teacher');
+      var teacherValue = teacherField ? teacherField.value.trim() : selectedTeacher;
+      var raw = document.getElementById('f-lessons').value;
+      var lines = raw.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+      if(!lines.length){ showToast('Adicione ao menos uma aula'); return; }
+      if(revista) c.revista = revista;
+      lines.forEach(function(line){
+        var icon = '', title = line;
+        var parts = line.split('|');
+        if(parts.length>1){ icon = parts[0].trim(); title = parts.slice(1).join('|').trim(); }
+        var lesson = newLessonObj(classId, title, icon);
+        if(teacherValue) lesson.teacher = teacherValue;
+        DATA.lessons.push(lesson);
+      });
+      save(); renderAll(); closeSheet();
+      showToast('Revista e aulas adicionadas');
+    };
+  }
+  window.__openRevista = openRevistaForm;
 
   function toggleLessonDone(id){
     var l = DATA.lessons.find(function(x){return x.id===id;});
@@ -1011,7 +1123,10 @@ var firebaseConfig = {
           '<span class="pill">'+lessons.filter(function(l){return l.done;}).length+'/'+lessons.length+'</span>'+
         '</div>'+
         (lessons.length ? rows : '<p class="muted" style="padding:0 16px 10px">Nenhuma aula cadastrada nesta turma.</p>')+
-        '<div class="class-add-row"><button class="btn small" onclick="window.__addLesson(\''+c.id+'\')">+ Adicionar aula</button></div>'+
+        '<div class="class-add-row" style="display:flex;gap:8px;flex-wrap:wrap">'+
+          '<button class="btn small" onclick="window.__addLesson(\''+c.id+'\')">+ Adicionar aula</button>'+
+          '<button class="btn small" onclick="window.__openRevista(\''+c.id+'\')">+ Revista (em lote)</button>'+
+        '</div>'+
       '</div>';
     }).join('');
   }

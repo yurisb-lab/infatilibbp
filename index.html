@@ -797,6 +797,11 @@ var firebaseConfig = {
     if(target) target.click();
   };
 
+  function findClassByName(name){
+    var norm = (name||'').trim().toLowerCase();
+    return DATA.classes.find(function(c){ return c.name.trim().toLowerCase()===norm; });
+  }
+
   function renderSchedule(){
     var list = document.getElementById('escalas-list');
     var sorted = DATA.schedule.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
@@ -806,13 +811,25 @@ var firebaseConfig = {
       return;
     }
     var today = todayISO();
+    var classCounter = {};
     list.innerHTML = sorted.map(function(s){
       var names = volunteerNames(s.volunteerIds);
       var isPast = s.date < today;
+      var matchedClass = findClassByName(s.className);
+      var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
+      var counterKey = matchedClass ? matchedClass.id : ('__'+s.className);
+      classCounter[counterKey] = (classCounter[counterKey]||0) + 1;
+      var num = classCounter[counterKey];
+      var numCircle = '<span class="lesson-num" style="background:'+(pal?pal.solid:'var(--ink-soft)')+'">'+num+'</span>';
+      var titleBadge = pal
+        ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
+        : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
       return '<div class="card" onclick="window.__openSched(\''+s.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
-        '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p>'+
-        '<span style="display:flex;gap:5px"><span class="pill '+(s.tipo==='Sábado'?'green':'')+'">'+(s.tipo||'Domingo')+'</span><span class="pill">'+fmtDateShort(s.date)+'</span></span></div>'+
-        '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+        '<div class="row" style="align-items:center">'+
+          '<div class="row" style="gap:8px;justify-content:flex-start">'+numCircle+titleBadge+'</div>'+
+          '<span style="display:flex;gap:5px;flex:none"><span class="pill '+(s.tipo==='Sábado'?'green':'')+'">'+(s.tipo||'Domingo')+'</span><span class="pill">'+fmtDateShort(s.date)+'</span></span>'+
+        '</div>'+
+        '<p class="card-sub" style="margin-top:6px">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
         (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
         (s.notes?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(s.notes)+'</p>':'')+
         '</div>';

@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ministério Infantil</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#146973">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Min. Infantil">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -25,6 +33,9 @@
     --pink: #E91E8C;
     --pink-tint: #FBDCEE;
     --blue: #29ABE2;
+    --blue-tint: #DFF3FC;
+    --purple: #8B5FBF;
+    --purple-tint: #ECE4F7;
     --border: #E6E0CC;
     --shadow: 0 2px 10px rgba(27,58,62,0.07);
     --radius: 16px;
@@ -117,6 +128,8 @@
   .pill.coral{background:var(--coral-tint); color:#A83B27;}
   .pill.green{background:var(--green-tint); color:#3F6B1F;}
   .pill.pink{background:var(--pink-tint); color:#A11364;}
+  .pill.blue{background:var(--blue-tint); color:#0E6B8F;}
+  .pill.purple{background:var(--purple-tint); color:#5B3A9C;}
   .muted{color:var(--ink-soft); font-size:13px;}
   .card-title{font-weight:600; font-size:15.5px; margin:0 0 2px;}
   .card-sub{font-size:13px; color:var(--ink-soft); margin:0;}
@@ -248,6 +261,68 @@
     line-height:1.55;
   }
   .header-actions{display:flex; gap:6px;}
+
+  /* turmas / aulas - estilo "folha de acompanhamento" */
+  .class-card{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:0 0 6px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .class-head{
+    padding:14px 16px 10px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+  }
+  .class-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:'Baloo 2',cursive; font-weight:600; font-size:15px;
+    padding:6px 14px; border-radius:999px;
+    margin-bottom:4px;
+  }
+  .class-age{font-size:12.5px; color:var(--ink-soft); margin-left:2px;}
+  .class-revista{font-size:13px; color:var(--ink-soft); margin:2px 0 0;}
+  .class-revista b{color:var(--ink);}
+  .lesson-row{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 16px;
+    border-top:1px solid var(--border);
+    cursor:pointer;
+  }
+  .lesson-row.done{opacity:.6;}
+  .lesson-num{
+    flex:none; width:26px; height:26px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12.5px; font-weight:700; color:#fff;
+  }
+  .lesson-icon{flex:none; font-size:17px; width:20px; text-align:center;}
+  .lesson-main{flex:1; min-width:0;}
+  .lesson-title{font-size:14.5px; font-weight:500; line-height:1.3;}
+  .lesson-title.done{text-decoration:line-through;}
+  .lesson-meta{font-size:12px; color:var(--ink-soft); margin-top:1px;}
+  .lesson-check{
+    flex:none; width:24px; height:24px; border-radius:50%;
+    border:2px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:13px;
+  }
+  .lesson-check.on{border-color:transparent;}
+  .badge-next{
+    flex:none; font-size:10.5px; font-weight:700; letter-spacing:.02em;
+    padding:2px 8px; border-radius:999px; background:var(--coral); color:#fff;
+    white-space:nowrap;
+  }
+  .class-add-row{
+    padding:10px 16px 4px;
+  }
+  .color-swatch-row{display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;}
+  .color-swatch{
+    width:30px; height:30px; border-radius:50%; cursor:pointer;
+    border:2px solid transparent;
+  }
+  .color-swatch.on{border-color:var(--ink);}
 </style>
 </head>
 <body>
@@ -290,7 +365,9 @@
 
     <!-- AULAS -->
     <div class="view" id="view-aulas">
-      <div class="section-title">Conteúdo das aulas <span class="muted" id="aulas-count"></span></div>
+      <div class="section-title">Turmas <span class="muted" id="aulas-count"></span>
+        <button class="btn small" id="btn-new-class" style="margin-left:auto">+ Turma</button>
+      </div>
       <div id="aulas-list"></div>
     </div>
 
@@ -346,12 +423,12 @@
 <script>
 // ATENÇÃO: cole aqui o firebaseConfig que você copiou do Console do Firebase.
 var firebaseConfig = {
-  apiKey: "COLOQUE_AQUI",
-  authDomain: "COLOQUE_AQUI",
-  projectId: "COLOQUE_AQUI",
-  storageBucket: "COLOQUE_AQUI",
-  messagingSenderId: "COLOQUE_AQUI",
-  appId: "COLOQUE_AQUI"
+  apiKey: "AIzaSyAFLdjtVQ1zx012XiNSnvLL2M6QZkEHS9A",
+  authDomain: "infantilibbp.firebaseapp.com",
+  projectId: "infantilibbp",
+  storageBucket: "infantilibbp.firebasestorage.app",
+  messagingSenderId: "772390212642",
+  appId: "1:772390212642:web:1f208f17c15057abef667b"
 };
 </script>
 <script>
@@ -359,6 +436,57 @@ var firebaseConfig = {
 
   var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [] };
   var loaded = false;
+
+  var CLASS_COLORS = {
+    roxo:    { tint:'var(--purple-tint)', text:'#5B3A9C', solid:'var(--purple)' },
+    verde:   { tint:'var(--green-tint)',  text:'#3F6B1F', solid:'var(--green)'  },
+    azul:    { tint:'var(--blue-tint)',   text:'#0E6B8F', solid:'var(--blue)'   },
+    coral:   { tint:'var(--coral-tint)',  text:'#A83B27', solid:'var(--coral)'  },
+    rosa:    { tint:'var(--pink-tint)',   text:'#A11364', solid:'var(--pink)'   },
+    amarelo: { tint:'var(--amber-tint)',  text:'#8A5A0E', solid:'#D9A400'       }
+  };
+  var CLASS_COLOR_KEYS = Object.keys(CLASS_COLORS);
+
+  function ensureClassesSeed(){
+    // primeira vez usando o app: cria as turmas de exemplo com base na folha de acompanhamento
+    if(DATA.classes.length===0 && DATA.lessons.length===0){
+      var bercarioId = uid();
+      var seisId = uid();
+      DATA.classes.push(
+        { id: bercarioId, name:'Berçário', ageRange:'1 a 2 anos', revista:'Atributos Comunicáveis (Morais) de Deus', color:'roxo' },
+        { id: seisId, name:'3 a 6 anos', ageRange:'3 a 6 anos', revista:'Certo ou Errado?', color:'verde' }
+      );
+      var bercarioLessons = [
+        ['Bom','💗'],['Justo','⚖️'],['Reto','🛡️'],['Misericordioso','🤲'],['Gracioso','⭐'],
+        ['Amoroso','❤️'],['Santo','👑'],['Zeloso','🔒'],['Sábio','📖'],['Verdadeiro','✅'],['Fiel','✝️']
+      ];
+      bercarioLessons.forEach(function(l){
+        DATA.lessons.push(newLessonObj(bercarioId, l[0], l[1]));
+      });
+      var seisLessons = [
+        'É certo ou errado?','Quais as regras de Deus para o certo e errado?',
+        'Como posso saber o que é certo ou errado?','Deus fica triste quando faço algo errado?',
+        'O que é certo fazer para ser salvo?','É certo obedecer aos pais?',
+        'É certo mentir de vez em quando?','Qual a forma certa de tratar minha família?',
+        'É errado pensar diferente dos outros?','É errado ter vergonha de dizer que é crente?',
+        'É certo pegar as coisas dos outros?','É certo amar meus inimigos?'
+      ];
+      seisLessons.forEach(function(t){
+        DATA.lessons.push(newLessonObj(seisId, t, ''));
+      });
+    }
+    // migração: aulas antigas sem turma vinculada entram numa turma "Geral"
+    var orphan = DATA.lessons.filter(function(l){ return !l.classId; });
+    if(orphan.length){
+      var geralId = uid();
+      DATA.classes.push({ id: geralId, name:'Geral', ageRange:'', revista:'', color:'amarelo' });
+      orphan.forEach(function(l){ l.classId = geralId; });
+    }
+  }
+
+  function newLessonObj(classId, title, icon){
+    return { id: uid(), classId: classId, title: title||'', icon: icon||'', verse:'', materials:'', activities:'', notes:'', teacher:'', date:'', done:false };
+  }
   var db = null;
   var configOk = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLOQUE_AQUI';
 
@@ -407,6 +535,7 @@ var firebaseConfig = {
   async function load(){
     if(!configOk){
       showConfigBanner();
+      ensureClassesSeed();
       loaded = true;
       renderAll();
       return;
@@ -417,10 +546,12 @@ var firebaseConfig = {
         var parsed = JSON.parse(docRef.data().json);
         DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, parsed);
       }
+      ensureClassesSeed();
       db.collection('ministerio').doc('dados').onSnapshot(function(doc){
         if(doc.exists && loaded){
           var fresh = JSON.parse(doc.data().json);
           DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, fresh);
+          ensureClassesSeed();
           renderAll();
         }
       });
@@ -468,11 +599,12 @@ var firebaseConfig = {
 
   document.getElementById('fab-add').addEventListener('click', function(){
     if(currentView==='escalas') openScheduleForm();
-    else if(currentView==='aulas') openLessonForm();
+    else if(currentView==='aulas') openClassForm();
     else if(currentView==='lembretes') openReminderForm();
     else if(currentView==='voluntarios') openVolunteerForm();
     else openScheduleForm();
   });
+  document.getElementById('btn-new-class').addEventListener('click', function(){ openClassForm(); });
 
   // ---------- OVERLAY / SHEET ----------
   var overlay = document.getElementById('overlay');
@@ -688,16 +820,75 @@ var firebaseConfig = {
   }
   window.__openSched = openScheduleForm;
 
-  // ---------- AULAS ----------
-  function openLessonForm(id){
-    var l = id ? DATA.lessons.find(function(x){return x.id===id;}) : {date: todayISO(), title:'', verse:'', materials:'', activities:'', notes:''};
+  // ---------- TURMAS ----------
+  function openClassForm(id){
+    var c = id ? DATA.classes.find(function(x){return x.id===id;}) : {name:'', ageRange:'', revista:'', color: CLASS_COLOR_KEYS[DATA.classes.length % CLASS_COLOR_KEYS.length]};
+    var selectedColor = c.color;
+    openSheet(
+      '<h2>'+(id?'Editar turma':'Nova turma')+'</h2>'+
+      '<label>Nome da turma</label><input id="f-name" value="'+escapeAttr(c.name)+'" placeholder="Ex: Juniores">'+
+      '<label>Faixa etária (opcional)</label><input id="f-age" value="'+escapeAttr(c.ageRange||'')+'" placeholder="Ex: 7 a 9 anos">'+
+      '<label>Revista / currículo (opcional)</label><input id="f-revista" value="'+escapeAttr(c.revista||'')+'" placeholder="Ex: Heróis da Fé">'+
+      '<label>Cor</label>'+
+      '<div class="color-swatch-row" id="color-swatches">'+CLASS_COLOR_KEYS.map(function(k){
+        return '<div class="color-swatch'+(k===selectedColor?' on':'')+'" data-color="'+k+'" style="background:'+CLASS_COLORS[k].solid+'"></div>';
+      }).join('')+'</div>'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir turma</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    document.getElementById('color-swatches').querySelectorAll('.color-swatch').forEach(function(el){
+      el.addEventListener('click', function(){
+        selectedColor = el.getAttribute('data-color');
+        document.getElementById('color-swatches').querySelectorAll('.color-swatch').forEach(function(x){x.classList.remove('on');});
+        el.classList.add('on');
+      });
+    });
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var name = document.getElementById('f-name').value.trim();
+      if(!name){ showToast('Digite o nome da turma'); return; }
+      var obj = {
+        id: id || uid(),
+        name: name,
+        ageRange: document.getElementById('f-age').value.trim(),
+        revista: document.getElementById('f-revista').value.trim(),
+        color: selectedColor
+      };
+      if(id){
+        var idx = DATA.classes.findIndex(function(x){return x.id===id;});
+        DATA.classes[idx] = obj;
+      } else {
+        DATA.classes.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Turma salva');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.classes = DATA.classes.filter(function(x){return x.id!==id;});
+        DATA.lessons = DATA.lessons.filter(function(x){return x.classId!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Turma removida');
+      };
+    }
+  }
+  window.__openClass = openClassForm;
+
+  // ---------- AULAS (dentro de uma turma) ----------
+  function openLessonForm(id, classId){
+    var l = id ? DATA.lessons.find(function(x){return x.id===id;}) : newLessonObj(classId);
     openSheet(
       '<h2>'+(id?'Editar aula':'Nova aula')+'</h2>'+
-      '<label>Data</label><input type="date" id="f-date" value="'+l.date+'">'+
-      '<label>Tema da aula</label><input id="f-title" value="'+escapeAttr(l.title)+'" placeholder="Ex: A criação do mundo">'+
-      '<label>Versículo</label><input id="f-verse" value="'+escapeAttr(l.verse||'')+'" placeholder="Ex: Gênesis 1:1">'+
-      '<label>Materiais necessários</label><textarea id="f-materials" placeholder="Ex: cartolina, EVA, cola">'+escapeHtml(l.materials||'')+'</textarea>'+
-      '<label>Atividades</label><textarea id="f-activities" placeholder="Ex: dinâmica, desenho, versículo para decorar">'+escapeHtml(l.activities||'')+'</textarea>'+
+      '<div class="field-row"><div><label>Ícone (emoji, opcional)</label><input id="f-icon" value="'+escapeAttr(l.icon||'')+'" placeholder="💗"></div>'+
+      '<div style="flex:3"><label>Assunto da aula</label><input id="f-title" value="'+escapeAttr(l.title)+'" placeholder="Ex: A criação do mundo"></div></div>'+
+      '<label>Versículo (opcional)</label><input id="f-verse" value="'+escapeAttr(l.verse||'')+'" placeholder="Ex: Gênesis 1:1">'+
+      '<div class="field-row"><div><label>Professor(a)</label><input id="f-teacher" value="'+escapeAttr(l.teacher||'')+'" placeholder="Nome"></div>'+
+      '<div><label>Data</label><input type="date" id="f-date" value="'+(l.date||'')+'"></div></div>'+
+      '<label>Materiais necessários (opcional)</label><textarea id="f-materials" placeholder="Ex: cartolina, EVA, cola">'+escapeHtml(l.materials||'')+'</textarea>'+
+      '<label>Atividades (opcional)</label><textarea id="f-activities" placeholder="Ex: dinâmica, desenho, versículo para decorar">'+escapeHtml(l.activities||'')+'</textarea>'+
       '<label>Observações (opcional)</label><textarea id="f-notes">'+escapeHtml(l.notes||'')+'</textarea>'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
@@ -708,16 +899,19 @@ var firebaseConfig = {
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var title = document.getElementById('f-title').value.trim();
-      var date = document.getElementById('f-date').value;
-      if(!title || !date){ showToast('Preencha data e tema'); return; }
+      if(!title){ showToast('Digite o assunto da aula'); return; }
       var obj = {
-        id: id || uid(),
-        date: date,
+        id: l.id || uid(),
+        classId: l.classId,
+        icon: document.getElementById('f-icon').value.trim(),
         title: title,
         verse: document.getElementById('f-verse').value.trim(),
+        teacher: document.getElementById('f-teacher').value.trim(),
+        date: document.getElementById('f-date').value,
         materials: document.getElementById('f-materials').value.trim(),
         activities: document.getElementById('f-activities').value.trim(),
-        notes: document.getElementById('f-notes').value.trim()
+        notes: document.getElementById('f-notes').value.trim(),
+        done: l.done || false
       };
       if(id){
         var idx = DATA.lessons.findIndex(function(x){return x.id===id;});
@@ -736,26 +930,74 @@ var firebaseConfig = {
       };
     }
   }
+  window.__openLesson = openLessonForm;
+  window.__addLesson = function(classId){ openLessonForm(null, classId); };
+
+  function toggleLessonDone(id){
+    var l = DATA.lessons.find(function(x){return x.id===id;});
+    if(!l) return;
+    l.done = !l.done;
+    if(l.done && !l.date) l.date = todayISO();
+    save(); renderAll();
+  }
+  window.__toggleLesson = toggleLessonDone;
+
+  function moveLesson(id, dir){
+    var l = DATA.lessons.find(function(x){return x.id===id;});
+    if(!l) return;
+    var siblings = DATA.lessons.filter(function(x){return x.classId===l.classId;});
+    var otherIds = siblings.map(function(x){return x.id;});
+    var fullIdx = DATA.lessons.findIndex(function(x){return x.id===id;});
+    var pos = otherIds.indexOf(id);
+    var newPos = pos + dir;
+    if(newPos<0 || newPos>=otherIds.length) return;
+    var swapId = otherIds[newPos];
+    var swapFullIdx = DATA.lessons.findIndex(function(x){return x.id===swapId;});
+    var tmp = DATA.lessons[fullIdx];
+    DATA.lessons[fullIdx] = DATA.lessons[swapFullIdx];
+    DATA.lessons[swapFullIdx] = tmp;
+    save(); renderAll();
+  }
+  window.__moveLesson = moveLesson;
 
   function renderLessons(){
     var list = document.getElementById('aulas-list');
-    var sorted = DATA.lessons.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
-    document.getElementById('aulas-count').textContent = sorted.length ? '('+sorted.length+')' : '';
-    if(!sorted.length){
-      list.innerHTML = '<div class="card empty">Nenhuma aula cadastrada ainda.<br>Toque em + para adicionar o conteúdo.</div>';
+    document.getElementById('aulas-count').textContent = DATA.classes.length ? '('+DATA.classes.length+')' : '';
+    if(!DATA.classes.length){
+      list.innerHTML = '<div class="card empty">Nenhuma turma cadastrada ainda.<br>Toque em "+ Turma" para criar a primeira, com a revista e as aulas numeradas.</div>';
       return;
     }
-    var today = todayISO();
-    list.innerHTML = sorted.map(function(l){
-      var isPast = l.date < today;
-      return '<div class="card" onclick="window.__openLesson(\''+l.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
-        '<div class="row"><p class="card-title">'+escapeHtml(l.title)+'</p><span class="pill amber">'+fmtDateShort(l.date)+'</span></div>'+
-        (l.verse?'<p class="card-sub">📖 '+escapeHtml(l.verse)+'</p>':'')+
-        (l.materials?'<p class="card-sub" style="margin-top:4px">Materiais: '+escapeHtml(l.materials)+'</p>':'')+
+    list.innerHTML = DATA.classes.map(function(c){
+      var pal = CLASS_COLORS[c.color] || CLASS_COLORS.roxo;
+      var lessons = DATA.lessons.filter(function(l){return l.classId===c.id;});
+      var nextIdx = lessons.findIndex(function(l){return !l.done;});
+      var rows = lessons.map(function(l, i){
+        var isNext = i===nextIdx;
+        return '<div class="lesson-row'+(l.done?' done':'')+'" onclick="window.__openLesson(\''+l.id+'\',\''+c.id+'\')">'+
+          '<span class="lesson-num" style="background:'+pal.solid+'">'+(i+1)+'</span>'+
+          (l.icon?'<span class="lesson-icon">'+escapeHtml(l.icon)+'</span>':'')+
+          '<div class="lesson-main">'+
+            '<div class="lesson-title'+(l.done?' done':'')+'">'+escapeHtml(l.title)+'</div>'+
+            '<div class="lesson-meta">'+(l.teacher?escapeHtml(l.teacher):'sem professor(a)')+(l.date?' · '+fmtDateShort(l.date):'')+'</div>'+
+          '</div>'+
+          (isNext?'<span class="badge-next">PRÓXIMA</span>':'')+
+          '<span class="lesson-check'+(l.done?' on':'')+'" style="'+(l.done?'background:'+pal.solid:'')+'" onclick="event.stopPropagation();window.__toggleLesson(\''+l.id+'\')">'+(l.done?'✓':'')+'</span>'+
         '</div>';
+      }).join('');
+      return '<div class="class-card">'+
+        '<div class="class-head" style="cursor:pointer" onclick="window.__openClass(\''+c.id+'\')">'+
+          '<div>'+
+            '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+'">'+escapeHtml(c.name)+'</span>'+
+            (c.ageRange?'<span class="class-age">'+escapeHtml(c.ageRange)+'</span>':'')+
+            (c.revista?'<p class="class-revista"><b>Revista:</b> '+escapeHtml(c.revista)+'</p>':'')+
+          '</div>'+
+          '<span class="pill">'+lessons.filter(function(l){return l.done;}).length+'/'+lessons.length+'</span>'+
+        '</div>'+
+        (lessons.length ? rows : '<p class="muted" style="padding:0 16px 10px">Nenhuma aula cadastrada nesta turma.</p>')+
+        '<div class="class-add-row"><button class="btn small" onclick="window.__addLesson(\''+c.id+'\')">+ Adicionar aula</button></div>'+
+      '</div>';
     }).join('');
   }
-  window.__openLesson = openLessonForm;
 
   // ---------- LEMBRETES ----------
   function buildMessageFromSchedule(s){
@@ -989,7 +1231,7 @@ var firebaseConfig = {
   function availableYears(){
     var years = {};
     DATA.schedule.forEach(function(s){ years[s.date.slice(0,4)] = true; });
-    DATA.lessons.forEach(function(l){ years[l.date.slice(0,4)] = true; });
+    DATA.lessons.forEach(function(l){ if(l.date) years[l.date.slice(0,4)] = true; });
     var arr = Object.keys(years);
     var thisYear = String(new Date().getFullYear());
     if(arr.indexOf(thisYear)===-1) arr.push(thisYear);
@@ -998,7 +1240,7 @@ var firebaseConfig = {
 
   function renderReport(year){
     var scheds = DATA.schedule.filter(function(s){return s.date.slice(0,4)===year;});
-    var lessons = DATA.lessons.filter(function(l){return l.date.slice(0,4)===year;});
+    var lessons = DATA.lessons.filter(function(l){return l.date && l.date.slice(0,4)===year;});
     var domingos = scheds.filter(function(s){return s.tipo!=='Sábado';}).length;
     var sabados = scheds.filter(function(s){return s.tipo==='Sábado';}).length;
 
@@ -1059,6 +1301,14 @@ var firebaseConfig = {
 
   load();
 })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('./sw.js').catch(function(err){
+      console.error('Falha ao registrar service worker', err);
+    });
+  });
+}
 </script>
 </body>
 </html>

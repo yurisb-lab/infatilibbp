@@ -353,7 +353,7 @@
       <div class="section-title">Escala do próximo domingo</div>
       <div id="next-schedule-box"></div>
 
-      <div class="section-title">Lembretes pendentes</div>
+      <div class="section-title">Mensagens pendentes</div>
       <div id="pending-reminders-box"></div>
 
       <div class="section-title">Esta semana</div>
@@ -376,9 +376,10 @@
       <div id="aulas-list"></div>
     </div>
 
-    <!-- LEMBRETES -->
+    <!-- MENSAGENS -->
     <div class="view" id="view-lembretes">
-      <div class="section-title">Lembretes <span class="muted" id="lembretes-count"></span></div>
+      <div class="section-title">Central de Mensagens <span class="muted" id="lembretes-count"></span></div>
+      <p class="muted" style="margin:-4px 4px 12px">Envie lembretes de escala, avisos e mensagens prontas para voluntários e pais/responsáveis.</p>
       <div id="lembretes-list"></div>
     </div>
 
@@ -413,8 +414,8 @@
       Aulas
     </button>
     <button class="navbtn" data-view="lembretes">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-      Lembretes
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 11.5a8.38 8.38 0 0 1-3.8 7.05A8.5 8.5 0 0 1 4.9 17.6L3 21l1.9-5.7A8.38 8.38 0 0 1 3.5 11.5 8.5 8.5 0 0 1 12 3a8.5 8.5 0 0 1 9 8.5z"/></svg>
+      Mensagens
     </button>
     <button class="navbtn" data-view="voluntarios">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16.5 4.5a3.2 3.2 0 0 1 0 6.3"/><path d="M17.5 14.3c2.6.5 4 2.6 4 5.7"/></svg>
@@ -521,6 +522,32 @@ var firebaseConfig = {
       DATA.classes.push({ id: geralId, name:'Geral', ageRange:'', revista:'', color:'amarelo' });
       orphan.forEach(function(l){ l.classId = geralId; });
     }
+  }
+
+  function nextLessonForClass(classId){
+    if(!classId) return null;
+    var lessons = DATA.lessons.filter(function(l){return l.classId===classId;});
+    return lessons.find(function(l){return !l.done;}) || null;
+  }
+
+  function lessonById(lessonId){
+    if(!lessonId) return null;
+    return DATA.lessons.find(function(l){return l.id===lessonId;}) || null;
+  }
+
+  function lessonChipPicker(classId, selectedLessonId){
+    if(!classId) return '<p class="muted">Selecione uma turma para vincular a aula.</p>';
+    var lessons = DATA.lessons.filter(function(l){return l.classId===classId;});
+    if(!lessons.length) return '<p class="muted">Esta turma ainda não tem aulas cadastradas (aba Aulas).</p>';
+    var html = '<div class="chip-select" id="lesson-chips">';
+    html += '<div class="chip'+(!selectedLessonId?' on':'')+'" data-lessonid="">Decidir depois</div>';
+    html += lessons.map(function(l,i){
+      var on = l.id===selectedLessonId;
+      var label = (i+1)+'. '+l.title+(l.done?' ✓':'');
+      return '<div class="chip'+(on?' on':'')+'" data-lessonid="'+l.id+'">'+escapeHtml(label)+'</div>';
+    }).join('');
+    html += '</div>';
+    return html;
   }
 
   function newLessonObj(classId, title, icon){
@@ -641,7 +668,7 @@ var firebaseConfig = {
   document.getElementById('fab-add').addEventListener('click', function(){
     if(currentView==='escalas') openScheduleForm();
     else if(currentView==='aulas') openClassForm();
-    else if(currentView==='lembretes') openReminderForm();
+    else if(currentView==='lembretes') openMessageForm();
     else if(currentView==='voluntarios') openVolunteerForm();
     else if(currentView==='criancas') openChildForm();
     else openScheduleForm();
@@ -990,7 +1017,7 @@ var firebaseConfig = {
 
   // ---------- ESCALAS ----------
   function openScheduleForm(id){
-    var s = id ? DATA.schedule.find(function(x){return x.id===id;}) : {date: todayISO(), tipo:'Domingo', className:'', classId:'', role:'', volunteerIds:[], time:'', notes:''};
+    var s = id ? DATA.schedule.find(function(x){return x.id===id;}) : {date: todayISO(), tipo:'Domingo', className:'', classId:'', role:'', volunteerIds:[], lessonId:'', time:'', notes:''};
     var hasClassId = s.classId && DATA.classes.some(function(c){return c.id===s.classId;});
     openSheet(
       '<h2>'+(id?'Editar escala':'Nova escala')+'</h2>'+
@@ -1020,6 +1047,9 @@ var firebaseConfig = {
       '</div>'+
       '<label>Voluntários escalados</label>'+
       '<div id="vol-picker-container">'+volunteerChipPicker(s.volunteerIds||[], hasClassId?s.classId:'', s.tipo==='Sábado'?'Sábado':'Domingo', s.role||'', false)+'</div>'+
+      '<label>Aula que será dada nesta escala</label>'+
+      '<div id="lesson-picker-container">'+lessonChipPicker(hasClassId?s.classId:'', s.lessonId||(hasClassId?(nextLessonForClass(s.classId)||{}).id:null))+'</div>'+
+      '<p class="muted" style="margin-top:4px">Vincular a aula sincroniza a data com a turma e alimenta as mensagens automáticas.</p>'+
       '<label>Observações (opcional)</label><textarea id="f-notes" placeholder="Ex: chegar 30 min antes">'+escapeHtml(s.notes||'')+'</textarea>'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
@@ -1032,11 +1062,29 @@ var firebaseConfig = {
     var roleSelected = s.role || '';
     var selected = (s.volunteerIds||[]).slice();
     var showAllVols = false;
+    var lessonSelected = s.lessonId || (hasClassId ? ((nextLessonForClass(s.classId)||{}).id || '') : '');
 
     function refreshVolPicker(){
       var container = document.getElementById('vol-picker-container');
       container.innerHTML = volunteerChipPicker(selected, classIdSelected, tipoSelected, roleSelected, showAllVols);
       wireVolPicker();
+    }
+    function refreshLessonPicker(){
+      var container = document.getElementById('lesson-picker-container');
+      container.innerHTML = lessonChipPicker(classIdSelected, lessonSelected);
+      wireLessonPicker();
+    }
+    function wireLessonPicker(){
+      var chipsEl = document.getElementById('lesson-chips');
+      if(chipsEl){
+        chipsEl.querySelectorAll('.chip').forEach(function(c){
+          c.addEventListener('click', function(){
+            lessonSelected = c.getAttribute('data-lessonid');
+            chipsEl.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+            c.classList.add('on');
+          });
+        });
+      }
     }
     function wireVolPicker(){
       var chipsEl = document.getElementById('vol-chips');
@@ -1059,8 +1107,8 @@ var firebaseConfig = {
       }
     }
     wireVolPicker();
+    wireLessonPicker();
 
-    var tipoChips = document.getElementById('tipo-chips');
     tipoChips.querySelectorAll('.chip').forEach(function(c){
       c.addEventListener('click', function(){
         tipoSelected = c.getAttribute('data-tipo');
@@ -1085,7 +1133,9 @@ var firebaseConfig = {
           classInputEl.value = cls ? cls.name : '';
           classInputEl.style.display = 'none';
         }
+        lessonSelected = classIdSelected ? ((nextLessonForClass(classIdSelected)||{}).id || '') : '';
         refreshVolPicker();
+        refreshLessonPicker();
       });
     }
 
@@ -1104,6 +1154,7 @@ var firebaseConfig = {
       var className = document.getElementById('f-class').value.trim();
       var date = document.getElementById('f-date').value;
       if(!className || !date){ showToast('Preencha data e turma'); return; }
+      var previousLessonId = s.lessonId || '';
       var obj = {
         id: id || uid(),
         date: date,
@@ -1113,6 +1164,7 @@ var firebaseConfig = {
         classId: classIdSelected,
         role: roleSelected,
         volunteerIds: selected,
+        lessonId: lessonSelected,
         notes: document.getElementById('f-notes').value.trim()
       };
       if(id){
@@ -1120,6 +1172,16 @@ var firebaseConfig = {
         DATA.schedule[idx] = obj;
       } else {
         DATA.schedule.push(obj);
+      }
+      // sincroniza a aula vinculada: a data da aula passa a refletir a data da escala
+      if(lessonSelected){
+        var linkedLesson = lessonById(lessonSelected);
+        if(linkedLesson) linkedLesson.date = date;
+      }
+      // se trocou de aula, limpa a data da aula anterior (caso ainda não tenha sido dada)
+      if(previousLessonId && previousLessonId!==lessonSelected){
+        var oldLesson = lessonById(previousLessonId);
+        if(oldLesson && !oldLesson.done) oldLesson.date = '';
       }
       save(); renderAll(); closeSheet();
       showToast('Escala salva');
@@ -1187,6 +1249,7 @@ var firebaseConfig = {
       var names = volunteerNames(s.volunteerIds);
       var isPast = s.date < today;
       var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
+      var linkedLesson = s.lessonId ? lessonById(s.lessonId) : null;
       var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
       var counterKey = matchedClass ? matchedClass.id : ('__'+s.className);
       classCounter[counterKey] = (classCounter[counterKey]||0) + 1;
@@ -1202,6 +1265,7 @@ var firebaseConfig = {
         '</div>'+
         '<p class="card-sub" style="margin-top:6px">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
         (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
+        (linkedLesson?'<p class="card-sub" style="margin-top:6px">📖 '+escapeHtml(linkedLesson.title)+(linkedLesson.done?' ✓':'')+'</p>':'')+
         (s.notes?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(s.notes)+'</p>':'')+
         '</div>';
     }).join('');
@@ -1256,8 +1320,13 @@ var firebaseConfig = {
     };
     if(id){
       document.getElementById('f-del').onclick = function(){
+        var removedLessonIds = DATA.lessons.filter(function(l){return l.classId===id;}).map(function(l){return l.id;});
         DATA.classes = DATA.classes.filter(function(x){return x.id!==id;});
         DATA.lessons = DATA.lessons.filter(function(x){return x.classId!==id;});
+        DATA.schedule.forEach(function(s){
+          if(s.classId===id) s.classId='';
+          if(removedLessonIds.indexOf(s.lessonId)>=0) s.lessonId='';
+        });
         save(); renderAll(); closeSheet();
         showToast('Turma removida');
       };
@@ -1343,6 +1412,7 @@ var firebaseConfig = {
     if(id){
       document.getElementById('f-del').onclick = function(){
         DATA.lessons = DATA.lessons.filter(function(x){return x.id!==id;});
+        DATA.schedule.forEach(function(s){ if(s.lessonId===id) s.lessonId=''; });
         save(); renderAll(); closeSheet();
         showToast('Removida');
       };
@@ -1417,6 +1487,10 @@ var firebaseConfig = {
   }
   window.__openRevista = openRevistaForm;
 
+  function scheduleForLesson(lessonId){
+    return DATA.schedule.find(function(s){return s.lessonId===lessonId;}) || null;
+  }
+
   function toggleLessonDone(id){
     var l = DATA.lessons.find(function(x){return x.id===id;});
     if(!l) return;
@@ -1457,6 +1531,7 @@ var firebaseConfig = {
       var nextIdx = lessons.findIndex(function(l){return !l.done;});
       var rows = lessons.map(function(l, i){
         var isNext = i===nextIdx;
+        var linkedSched = scheduleForLesson(l.id);
         return '<div class="lesson-row'+(l.done?' done':'')+'" onclick="window.__openLesson(\''+l.id+'\',\''+c.id+'\')">'+
           '<span class="lesson-num" style="background:'+pal.solid+'">'+(i+1)+'</span>'+
           (l.icon?'<span class="lesson-icon">'+escapeHtml(l.icon)+'</span>':'')+
@@ -1465,6 +1540,7 @@ var firebaseConfig = {
             '<div class="lesson-meta">'+(l.teacher?escapeHtml(l.teacher):'sem professor(a)')+(l.date?' · '+fmtDateShort(l.date):'')+'</div>'+
           '</div>'+
           (isNext?'<span class="badge-next">PRÓXIMA</span>':'')+
+          (!isNext && linkedSched?'<span class="pill" style="flex:none">escalada</span>':'')+
           '<span class="lesson-check'+(l.done?' on':'')+'" style="'+(l.done?'background:'+pal.solid:'')+'" onclick="event.stopPropagation();window.__toggleLesson(\''+l.id+'\')">'+(l.done?'✓':'')+'</span>'+
         '</div>';
       }).join('');
@@ -1486,9 +1562,83 @@ var firebaseConfig = {
     }).join('');
   }
 
-  // ---------- LEMBRETES ----------
+  // ---------- MENSAGENS (central de comunicação) ----------
+  var MESSAGE_TEMPLATES = [
+    { key:'escala', label:'Lembrete de escala', icon:'📅' },
+    { key:'agradecimento', label:'Agradecimento', icon:'💛' },
+    { key:'convocacao', label:'Convocação p/ reunião', icon:'📢' },
+    { key:'cancelamento', label:'Cancelamento de culto', icon:'⚠️' },
+    { key:'aniversario', label:'Aniversário', icon:'🎉' },
+    { key:'aviso', label:'Aviso geral', icon:'📌' },
+    { key:'', label:'Em branco', icon:'✏️' }
+  ];
+
+  var RECIPIENT_TYPES = [
+    { key:'proxima_escala', label:'Voluntários da próxima escala' },
+    { key:'escala', label:'Voluntários de uma escala específica' },
+    { key:'todos', label:'Todos os voluntários' },
+    { key:'professores', label:'Professores' },
+    { key:'auxiliares', label:'Auxiliares' },
+    { key:'pregadores', label:'Pregadores' },
+    { key:'turma', label:'Voluntários de uma turma' },
+    { key:'pais', label:'Pais e responsáveis de uma turma' }
+  ];
+
+  function parsePhones(str){
+    if(!str) return [];
+    return str.split(/[,;\n\/]| e /i).map(function(s){ return s.trim(); }).filter(Boolean);
+  }
+
+  function toWaNumber(phone){
+    var digits = String(phone).replace(/\D/g,'');
+    if(digits.length>0 && digits.length<=11) digits = '55'+digits;
+    return digits;
+  }
+
+  function getRecipients(type, classId, scheduleId){
+    var out = [];
+    function addVol(v){
+      if(!v) return;
+      out.push({ name:v.name, phones: v.phone ? parsePhones(v.phone) : [] });
+    }
+    if(type==='todos'){
+      DATA.volunteers.forEach(addVol);
+    } else if(type==='professores'){
+      DATA.volunteers.filter(function(v){return v.role==='Professor';}).forEach(addVol);
+    } else if(type==='auxiliares'){
+      DATA.volunteers.filter(function(v){return v.role==='Auxiliar';}).forEach(addVol);
+    } else if(type==='pregadores'){
+      DATA.volunteers.filter(function(v){return v.role==='Pregador';}).forEach(addVol);
+    } else if(type==='turma'){
+      DATA.volunteers.filter(function(v){ return isVolunteerCompatible(v, classId, null, null); }).forEach(addVol);
+    } else if(type==='pais'){
+      DATA.children.filter(function(c){ return c.classId===classId; }).forEach(function(c){
+        var respName = c.guardians ? c.guardians.split(',')[0].trim() : 'Responsável';
+        out.push({ name: respName + ' ('+c.name+')', phones: parsePhones(c.phones) });
+      });
+    } else if(type==='proxima_escala'){
+      var nb = nextSundayEntries();
+      var seen = {};
+      nb.items.forEach(function(s){
+        (s.volunteerIds||[]).forEach(function(vid){
+          if(seen[vid]) return;
+          seen[vid] = true;
+          addVol(DATA.volunteers.find(function(x){return x.id===vid;}));
+        });
+      });
+    } else if(type==='escala'){
+      var sc = DATA.schedule.find(function(x){return x.id===scheduleId;});
+      if(sc){
+        (sc.volunteerIds||[]).forEach(function(vid){
+          addVol(DATA.volunteers.find(function(x){return x.id===vid;}));
+        });
+      }
+    }
+    return out;
+  }
+
   function buildMessageFromSchedule(s){
-    var lesson = DATA.lessons.find(function(l){return l.date===s.date;});
+    var lesson = s.lessonId ? lessonById(s.lessonId) : DATA.lessons.find(function(l){return l.date===s.date;});
     var names = volunteerNames(s.volunteerIds);
     var lines = [];
     lines.push('📌 Ministério Infantil — ' + fmtDate(s.date));
@@ -1504,77 +1654,252 @@ var firebaseConfig = {
     return lines.join('\n');
   }
 
-  function openReminderForm(id, prefillMessage, prefillTitle){
-    var r = id ? DATA.reminders.find(function(x){return x.id===id;}) : {title: prefillTitle||'', date: todayISO(), message: prefillMessage||''};
-    openSheet(
-      '<h2>'+(id?'Editar lembrete':'Novo lembrete')+'</h2>'+
-      '<label>Título</label><input id="f-title" value="'+escapeAttr(r.title)+'" placeholder="Ex: Lembrete de domingo">'+
-      '<label>Data</label><input type="date" id="f-date" value="'+r.date+'">'+
-      '<label>Mensagem para o grupo</label><textarea id="f-message" rows="6" placeholder="Escreva a mensagem...">'+escapeHtml(r.message||'')+'</textarea>'+
-      '<p class="muted" style="margin-top:4px">Dica: você pode usar uma escala como base — vá em Escalas e toque em "Gerar lembrete" dentro de uma escala.</p>'+
-      '<div class="sheet-actions">'+
-        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
-        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
-        '<button class="btn primary" id="f-save">Salvar</button>'+
-      '</div>'
-    );
-    document.getElementById('f-cancel').onclick = closeSheet;
-    document.getElementById('f-save').onclick = function(){
-      var title = document.getElementById('f-title').value.trim();
-      if(!title){ showToast('Digite um título'); return; }
-      var obj = {
-        id: id || uid(),
-        title: title,
-        date: document.getElementById('f-date').value,
-        message: document.getElementById('f-message').value
-      };
-      if(id){
-        var idx = DATA.reminders.findIndex(function(x){return x.id===id;});
-        DATA.reminders[idx] = obj;
-      } else {
-        DATA.reminders.push(obj);
+  function buildTemplateMessage(key, st){
+    if(key==='escala'){
+      if(st.scheduleId){
+        var sc = DATA.schedule.find(function(x){return x.id===st.scheduleId;});
+        if(sc) return buildMessageFromSchedule(sc);
       }
-      save(); renderAll(); closeSheet();
-      showToast('Lembrete salvo');
-    };
-    if(id){
-      document.getElementById('f-del').onclick = function(){
-        DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
-        save(); renderAll(); closeSheet();
-        showToast('Removido');
-      };
+      var nb = nextSundayEntries();
+      if(nb.items.length){
+        return nb.items.map(buildMessageFromSchedule).join('\n\n---\n\n');
+      }
+      return '📌 Ministério Infantil\n\nLembrete: não esqueça de conferir a escala do próximo domingo!';
     }
+    if(key==='agradecimento'){
+      return '💛 Olá! Passando aqui para agradecer de coração sua dedicação e carinho com as crianças no Ministério Infantil. Seu serviço faz toda a diferença. Deus continue abençoando sua vida! 🙏';
+    }
+    if(key==='convocacao'){
+      return '📢 Convocação — Reunião do Ministério Infantil\n\nData: '+(st.extra.data||'___')+'\nHorário: '+(st.extra.horario||'___')+'\nLocal: '+(st.extra.local||'___')+'\n\nSua presença é muito importante, contamos com você! 🙏';
+    }
+    if(key==='cancelamento'){
+      return '⚠️ Aviso: o culto/aula de '+(st.extra.data||'___')+' foi cancelado(a). Em breve enviaremos mais informações. Qualquer dúvida, fale com a coordenação.';
+    }
+    if(key==='aniversario'){
+      return '🎉 Hoje é aniversário de '+(st.extra.nome||'___')+'! Vamos celebrar juntos essa bênção. Que Deus continue abençoando essa vida! 🎂❤️';
+    }
+    if(key==='aviso'){
+      return '📌 Aviso do Ministério Infantil:\n\n';
+    }
+    return '';
   }
 
-  function openReminderView(id){
-    var r = DATA.reminders.find(function(x){return x.id===id;});
-    if(!r) return;
-    openSheet(
-      '<h2>'+escapeHtml(r.title)+'</h2>'+
-      '<p class="muted">'+fmtDate(r.date)+'</p>'+
-      '<div class="msg-preview" id="msg-text">'+escapeHtml(r.message)+'</div>'+
-      '<div class="sheet-actions">'+
-        '<button class="btn" id="f-copy">Copiar texto</button>'+
-        '<button class="btn primary" id="f-wa">Abrir no WhatsApp</button>'+
-      '</div>'+
-      '<div class="sheet-actions" style="margin-top:8px">'+
-        '<button class="btn ghost" id="f-edit">Editar</button>'+
-        '<button class="btn danger-ghost" id="f-del">Excluir</button>'+
-        '<button class="btn ghost" id="f-close">Fechar</button>'+
-      '</div>'
-    );
-    document.getElementById('f-close').onclick = closeSheet;
-    document.getElementById('f-edit').onclick = function(){ openReminderForm(id); };
-    document.getElementById('f-del').onclick = function(){
-      DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
-      save(); renderAll(); closeSheet();
-      showToast('Removido');
+  function openMessageForm(opts){
+    opts = opts || {};
+    var id = opts.id || null;
+    var existing = id ? DATA.reminders.find(function(x){return x.id===id;}) : null;
+    var state = {
+      title: (existing?existing.title:opts.title) || '',
+      date: (existing?existing.date:opts.date) || todayISO(),
+      message: (existing?existing.message:opts.message) || '',
+      templateKey: (existing?existing.templateKey:opts.templateKey),
+      recipientType: (existing?existing.recipientType:opts.recipientType) || 'proxima_escala',
+      classId: (existing?existing.classId:opts.classId) || '',
+      scheduleId: (existing?existing.scheduleId:opts.scheduleId) || '',
+      extra: { data:'', horario:'', local:'', nome:'' }
     };
-    document.getElementById('f-copy').onclick = function(){ copyText(r.message); };
-    document.getElementById('f-wa').onclick = function(){
-      window.open('https://wa.me/?text='+encodeURIComponent(r.message), '_blank');
-    };
+    if(state.templateKey===undefined) state.templateKey = opts.message ? '' : 'escala';
+    if(!state.message && state.templateKey){
+      state.message = buildTemplateMessage(state.templateKey, state);
+    }
+
+    function captureFormValues(){
+      var t = document.getElementById('f-title'); if(t) state.title = t.value;
+      var d = document.getElementById('f-date'); if(d) state.date = d.value;
+      var msg = document.getElementById('f-message'); if(msg) state.message = msg.value;
+      ['data','horario','local','nome'].forEach(function(k){
+        var el = document.getElementById('f-extra-'+k);
+        if(el) state.extra[k] = el.value;
+      });
+    }
+
+    function extraFieldsHtml(){
+      if(state.templateKey==='convocacao'){
+        return '<div class="field-row">'+
+          '<div><label>Data</label><input id="f-extra-data" value="'+escapeAttr(state.extra.data)+'" placeholder="Ex: 12/08"></div>'+
+          '<div><label>Horário</label><input id="f-extra-horario" value="'+escapeAttr(state.extra.horario)+'" placeholder="Ex: 19h30"></div>'+
+          '</div>'+
+          '<label>Local</label><input id="f-extra-local" value="'+escapeAttr(state.extra.local)+'" placeholder="Ex: Salão social">';
+      }
+      if(state.templateKey==='cancelamento'){
+        return '<label>Data cancelada</label><input id="f-extra-data" value="'+escapeAttr(state.extra.data)+'" placeholder="Ex: domingo, 12/08">';
+      }
+      if(state.templateKey==='aniversario'){
+        var childOpts = DATA.children.length
+          ? '<select id="f-extra-child" style="margin-top:6px"><option value="">— Escolher criança (opcional) —</option>'+
+              DATA.children.map(function(c){ return '<option value="'+escapeAttr(c.name)+'">'+escapeHtml(c.name)+'</option>'; }).join('')+
+            '</select>'
+          : '';
+        return '<label>Nome do aniversariante</label><input id="f-extra-nome" value="'+escapeAttr(state.extra.nome)+'" placeholder="Nome">'+childOpts;
+      }
+      return '';
+    }
+
+    function recipientExtraHtml(){
+      if(state.recipientType==='turma' || state.recipientType==='pais'){
+        return '<select id="f-classid">'+
+          '<option value="">— Selecione uma turma —</option>'+
+          DATA.classes.map(function(c){
+            return '<option value="'+c.id+'"'+(state.classId===c.id?' selected':'')+'>'+escapeHtml(c.name)+'</option>';
+          }).join('')+
+        '</select>';
+      }
+      if(state.recipientType==='escala'){
+        var upcoming = DATA.schedule.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+        return '<select id="f-scheduleid">'+
+          '<option value="">— Selecione uma escala —</option>'+
+          upcoming.map(function(s){
+            return '<option value="'+s.id+'"'+(state.scheduleId===s.id?' selected':'')+'>'+fmtDateShort(s.date)+' · '+escapeHtml(s.className)+'</option>';
+          }).join('')+
+        '</select>';
+      }
+      if(state.recipientType==='proxima_escala'){
+        var nb = nextSundayEntries();
+        if(!nb.items.length) return '<p class="muted">Nenhuma escala futura de domingo cadastrada ainda.</p>';
+        return '<p class="muted">Resolve para: '+nb.items.map(function(s){return escapeHtml(s.className);}).join(', ')+' — '+fmtDateShort(nb.date)+'</p>';
+      }
+      return '';
+    }
+
+    function recipientsPreviewHtml(){
+      var recipients = getRecipients(state.recipientType, state.classId, state.scheduleId);
+      if(!recipients.length){
+        return '<p class="muted">Nenhum destinatário encontrado para esta seleção.</p>';
+      }
+      return '<div class="card" style="padding:10px 14px">'+recipients.map(function(r, i){
+        var phoneBtns = r.phones.length
+          ? r.phones.map(function(p){
+              return '<a class="btn small" style="text-decoration:none;margin-top:4px" target="_blank" href="https://wa.me/'+toWaNumber(p)+'?text='+encodeURIComponent(state.message)+'">WhatsApp · '+escapeHtml(p)+'</a>';
+            }).join(' ')
+          : '<span class="muted" style="font-size:12.5px">sem telefone</span>';
+        return '<div style="'+(i>0?'margin-top:10px;padding-top:10px;border-top:1px solid var(--border)':'')+'">'+
+          '<div style="font-weight:500;font-size:14px">'+escapeHtml(r.name)+'</div>'+
+          '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">'+phoneBtns+'</div>'+
+        '</div>';
+      }).join('')+'</div>';
+    }
+
+    function html(){
+      return '<h2>'+(id?'Editar mensagem':'Nova mensagem')+'</h2>'+
+        '<label>Modelo</label>'+
+        '<div class="chip-select" id="tpl-chips">'+MESSAGE_TEMPLATES.map(function(t){
+          return '<div class="chip'+(state.templateKey===t.key?' on':'')+'" data-tpl="'+t.key+'">'+t.icon+' '+t.label+'</div>';
+        }).join('')+'</div>'+
+        '<div id="extra-fields">'+extraFieldsHtml()+'</div>'+
+        '<button type="button" class="btn small" id="f-gen" style="margin-top:10px">↻ Gerar texto do modelo</button>'+
+        '<label>Título (para sua organização)</label><input id="f-title" value="'+escapeAttr(state.title)+'" placeholder="Ex: Lembrete de domingo">'+
+        '<label>Data de referência</label><input type="date" id="f-date" value="'+state.date+'">'+
+        '<label>Mensagem</label><textarea id="f-message" rows="7">'+escapeHtml(state.message)+'</textarea>'+
+        '<label>Enviar para</label>'+
+        '<div class="chip-select" id="rec-chips">'+RECIPIENT_TYPES.map(function(r){
+          return '<div class="chip'+(state.recipientType===r.key?' on':'')+'" data-rec="'+r.key+'">'+r.label+'</div>';
+        }).join('')+'</div>'+
+        '<div id="rec-extra" style="margin-top:8px">'+recipientExtraHtml()+'</div>'+
+        '<label>Destinatários encontrados</label>'+
+        '<div id="rec-preview">'+recipientsPreviewHtml()+'</div>'+
+        '<div class="sheet-actions">'+
+          '<button class="btn" id="f-copy">Copiar mensagem</button>'+
+          '<button class="btn primary" id="f-save">Salvar</button>'+
+        '</div>'+
+        '<div class="sheet-actions" style="margin-top:8px">'+
+          (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+          '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '</div>';
+    }
+
+    function rerender(){
+      captureFormValues();
+      sheet.innerHTML = html();
+      wire();
+    }
+
+    function wire(){
+      document.getElementById('tpl-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          captureFormValues();
+          state.templateKey = c.getAttribute('data-tpl');
+          rerender();
+        });
+      });
+      var genBtn = document.getElementById('f-gen');
+      if(genBtn){
+        genBtn.onclick = function(){
+          captureFormValues();
+          state.message = buildTemplateMessage(state.templateKey, state);
+          rerender();
+        };
+      }
+      document.getElementById('rec-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          captureFormValues();
+          state.recipientType = c.getAttribute('data-rec');
+          rerender();
+        });
+      });
+      var classSel = document.getElementById('f-classid');
+      if(classSel){
+        classSel.addEventListener('change', function(){
+          captureFormValues();
+          state.classId = classSel.value;
+          rerender();
+        });
+      }
+      var schedSel = document.getElementById('f-scheduleid');
+      if(schedSel){
+        schedSel.addEventListener('change', function(){
+          captureFormValues();
+          state.scheduleId = schedSel.value;
+          rerender();
+        });
+      }
+      var childSel = document.getElementById('f-extra-child');
+      if(childSel){
+        childSel.addEventListener('change', function(){
+          var nomeInput = document.getElementById('f-extra-nome');
+          if(nomeInput) nomeInput.value = childSel.value;
+        });
+      }
+      document.getElementById('f-cancel').onclick = closeSheet;
+      document.getElementById('f-copy').onclick = function(){
+        captureFormValues();
+        copyText(state.message);
+      };
+      document.getElementById('f-save').onclick = function(){
+        captureFormValues();
+        var tplLabel = (MESSAGE_TEMPLATES.find(function(t){return t.key===state.templateKey;})||{}).label;
+        var title = state.title || tplLabel || 'Mensagem';
+        var obj = {
+          id: id || uid(),
+          title: title,
+          date: state.date,
+          message: state.message,
+          templateKey: state.templateKey,
+          recipientType: state.recipientType,
+          classId: state.classId,
+          scheduleId: state.scheduleId
+        };
+        if(id){
+          var idx = DATA.reminders.findIndex(function(x){return x.id===id;});
+          DATA.reminders[idx] = obj;
+        } else {
+          DATA.reminders.push(obj);
+        }
+        save(); renderAll(); closeSheet();
+        showToast('Mensagem salva');
+      };
+      if(id){
+        document.getElementById('f-del').onclick = function(){
+          DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
+          save(); renderAll(); closeSheet();
+          showToast('Removida');
+        };
+      }
+    }
+
+    openSheet(html());
+    wire();
   }
+  window.__openMsg = openMessageForm;
 
   function copyText(text){
     try{
@@ -1597,31 +1922,41 @@ var firebaseConfig = {
 
   function renderReminders(){
     var list = document.getElementById('lembretes-list');
-    var sorted = DATA.reminders.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    var sorted = DATA.reminders.slice().sort(function(a,b){return (a.date||'').localeCompare(b.date||'');});
     document.getElementById('lembretes-count').textContent = sorted.length ? '('+sorted.length+')' : '';
     if(!sorted.length){
-      list.innerHTML = '<div class="card empty">Nenhum lembrete criado ainda.<br>Toque em + para escrever um.</div>';
+      list.innerHTML = '<div class="card empty">Nenhuma mensagem criada ainda.<br>Toque em + para escrever a primeira.</div>';
       return;
     }
+    var recLabels = {};
+    RECIPIENT_TYPES.forEach(function(r){ recLabels[r.key]=r.label; });
     var today = todayISO();
     list.innerHTML = sorted.map(function(r){
       var isPast = r.date < today;
+      var recLabel = recLabels[r.recipientType] || '';
       return '<div class="card" onclick="window.__viewRem(\''+r.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
         '<div class="row"><p class="card-title">'+escapeHtml(r.title)+'</p><span class="pill coral">'+fmtDateShort(r.date)+'</span></div>'+
+        (recLabel?'<p class="card-sub" style="margin-top:2px">Para: '+escapeHtml(recLabel)+'</p>':'')+
         '<p class="card-sub" style="margin-top:4px">'+escapeHtml((r.message||'').slice(0,70))+((r.message||'').length>70?'…':'')+'</p>'+
         '</div>';
     }).join('');
   }
-  window.__viewRem = openReminderView;
+  window.__viewRem = function(id){ openMessageForm({id:id}); };
 
-  // schedule -> generate reminder shortcut
+  // schedule -> generate message shortcut
   function generateReminderFromSchedule(id){
     var s = DATA.schedule.find(function(x){return x.id===id;});
     if(!s) return;
-    var msg = buildMessageFromSchedule(s);
     closeSheet();
     setTimeout(function(){
-      openReminderForm(null, msg, 'Lembrete — ' + s.className + ' ' + fmtDateShort(s.date));
+      openMessageForm({
+        templateKey:'escala',
+        recipientType:'escala',
+        scheduleId: id,
+        message: buildMessageFromSchedule(s),
+        title: 'Lembrete — ' + s.className + ' ' + fmtDateShort(s.date),
+        date: s.date
+      });
     }, 150);
   }
   window.__genRem = generateReminderFromSchedule;
@@ -1649,7 +1984,7 @@ var firebaseConfig = {
       nextBox.innerHTML = nb.items.map(function(s){
         var names = volunteerNames(s.volunteerIds);
         var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
-        var lesson = matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : null;
+        var lesson = s.lessonId ? lessonById(s.lessonId) : (matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : null);
         return '<div class="card">'+
           '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p><span class="pill">'+fmtDateShort(s.date)+'</span></div>'+
           '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+

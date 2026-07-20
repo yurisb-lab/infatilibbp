@@ -1238,38 +1238,44 @@ var firebaseConfig = {
   }
 
   function volunteerChipPicker(selectedIds, classId, tipo, role, showAll, dateIso){
-    if(!DATA.volunteers.length) return '<p class="muted">Cadastre voluntários na aba Equipe primeiro.</p>';
-    dateIso = dateIso || todayISO();
-    var compatible = DATA.volunteers.filter(function(v){ return isVolunteerCompatible(v, classId, tipo, role); });
-    var rest = DATA.volunteers.filter(function(v){ return compatible.indexOf(v)===-1; });
-    compatible.sort(function(a,b){ return priorityScore(b, dateIso) - priorityScore(a, dateIso); });
-    var hasFilter = !!(classId || tipo || role);
-    var html = '';
-    if(hasFilter && !compatible.length){
-      html += '<p class="muted">Nenhum voluntário compatível encontrado com estes filtros.</p>';
-    }
-    html += '<div class="chip-select" id="vol-chips" style="align-items:flex-start">' + compatible.map(function(v){
-      var on = selectedIds.indexOf(v.id)>=0;
-      var status = volunteerStatusTag(v, role, dateIso);
-      return '<div class="chip'+(on?' on':'')+'" data-id="'+v.id+'" style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.3;padding:6px 12px">'+
-        '<span>'+escapeHtml(v.name)+'</span>'+
-        '<span style="font-size:11px;opacity:.85;font-weight:400">'+status.text+'</span>'+
-        '</div>';
-    }).join('');
-    if(showAll){
-      html += rest.map(function(v){
-        var on = selectedIds.indexOf(v.id)>=0;
-        return '<div class="chip'+(on?' on':'')+'" data-id="'+v.id+'" style="opacity:.55">'+escapeHtml(v.name)+' ⚠️ fora do filtro</div>';
-      }).join('');
-    }
-    html += '</div>';
-    if(hasFilter && rest.length){
-      html += '<button type="button" class="btn ghost small" id="vol-toggle-all" style="margin-top:6px;padding-left:0">'+(showAll?'Mostrar só compatíveis':'Mostrar todos os voluntários ('+rest.length+' fora do filtro)')+'</button>';
-    }
-    html += '<div id="vol-rest-warnings"></div>';
-    return html;
+  if(!DATA.volunteers.length) return '<p class="muted">Cadastre voluntários na aba Equipe primeiro.</p>';
+  dateIso = dateIso || todayISO();
+  var compatible = DATA.volunteers.filter(function(v){ return isVolunteerCompatible(v, classId, tipo, role); });
+  var rest = DATA.volunteers.filter(function(v){ return compatible.indexOf(v)===-1; });
+  var hasFilter = !!(classId || tipo || role);
+
+  function chipHtml(v, dimmed){
+    var on = selectedIds.indexOf(v.id)>=0;
+    var status = volunteerStatusTag(v, role, dateIso);
+    return '<div class="chip'+(on?' on':'')+'" data-id="'+v.id+'" style="display:flex;flex-direction:column;align-items:flex-start;line-height:1.3;padding:6px 12px;'+(dimmed?'opacity:.55':'')+'">'+
+      '<span>'+escapeHtml(v.name)+(dimmed?' ⚠️ fora do filtro':'')+'</span>'+
+      (dimmed?'':'<span style="font-size:11px;opacity:.85;font-weight:400">'+status.text+'</span>')+
+      '</div>';
   }
-  function renderRestWarnings(selectedIds, role, dateIso){
+
+  var html = '<div id="vol-chips">';
+  if(hasFilter && !compatible.length){
+    html += '<p class="muted">Nenhum voluntário compatível encontrado com estes filtros.</p>';
+  }
+  var groups = FUNCOES.concat(['Sem função']);
+  groups.forEach(function(g){
+    var members = compatible.filter(function(v){ return g==='Sem função' ? !v.role : v.role===g; });
+    if(!members.length) return;
+    members.sort(function(a,b){ return priorityScore(b, dateIso) - priorityScore(a, dateIso); });
+    html += '<p class="muted" style="margin:12px 0 4px;font-weight:600">'+g+'</p>';
+    html += '<div class="chip-select" style="align-items:flex-start">'+members.map(function(v){return chipHtml(v,false);}).join('')+'</div>';
+  });
+  if(showAll && rest.length){
+    html += '<p class="muted" style="margin:12px 0 4px;font-weight:600">Fora do filtro</p>';
+    html += '<div class="chip-select">'+rest.map(function(v){return chipHtml(v,true);}).join('')+'</div>';
+  }
+  html += '</div>';
+  if(hasFilter && rest.length){
+    html += '<button type="button" class="btn ghost small" id="vol-toggle-all" style="margin-top:6px;padding-left:0">'+(showAll?'Mostrar só compatíveis':'Mostrar todos os voluntários ('+rest.length+' fora do filtro)')+'</button>';
+  }
+  html += '<div id="vol-rest-warnings"></div>';
+  return html;
+}function renderRestWarnings(selectedIds, role, dateIso){
     var box = document.getElementById('vol-rest-warnings');
     if(!box) return;
     var lines = [];
@@ -1332,6 +1338,7 @@ var firebaseConfig = {
     var roleSelected = s.role || '';
     var selected = (s.volunteerIds||[]).slice();
     var showAllVols = false;
+    var tipoChips = document.getElementById('tipo-chips');
     var lessonSelected = s.lessonId || (hasClassId ? ((nextLessonForClass(s.classId)||{}).id || '') : '');
 
     function currentDateSelected(){

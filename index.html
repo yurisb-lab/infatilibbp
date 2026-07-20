@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ministério Infantil</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#146973">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Min. Infantil">
@@ -64,21 +64,25 @@
   }
   /* header */
   .topbar{
-    background:var(--teal);
-    color:#fff;
-    padding:22px 20px 34px;
+    background:var(--paper);
+    color:var(--ink);
+    padding:20px 20px 18px;
     position:relative;
     overflow:hidden;
+    border-bottom:1px solid var(--border);
+    box-shadow:var(--shadow);
   }
   .topbar .eyebrow{
-    font-size:12px;
+    font-size:12.5px;
+    font-weight:600;
     letter-spacing:.04em;
-    opacity:.85;
-    margin-bottom:2px;
+    color:var(--ink-soft);
+    margin-bottom:10px;
   }
-  .topbar h1{
-    color:#fff;
-    font-size:22px;
+  .topbar .logo-img{
+    display:block;
+    height:46px;
+    width:auto;
   }
   .scallop{
     position:absolute;
@@ -332,18 +336,17 @@
     <div class="row" style="align-items:flex-start">
       <div>
         <div class="eyebrow">Igreja Bíblica Batista de Pacatuba</div>
-        <h1>Ministério Infantil</h1>
+        <img class="logo-img" src="logo-ministerio-infantil.png" alt="Ministério Infantil">
       </div>
       <div class="header-actions">
-        <button id="btn-settings" aria-label="Configurações" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <button id="btn-settings" aria-label="Configurações" style="background:var(--teal-tint);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--teal-dark)" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
-        <button id="btn-reports" aria-label="Relatórios" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        <button id="btn-reports" aria-label="Relatórios" style="background:var(--teal-tint);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--teal-dark)" stroke-width="1.8"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
         </button>
       </div>
     </div>
-    <div class="scallop"></div>
   </div>
 
   <div class="content">

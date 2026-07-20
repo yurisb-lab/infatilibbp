@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ministério Infantil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #FBF9F1;
+    --paper: #FFFFFF;
+    --ink: #1B3A3E;
+    --ink-soft: #5D7679;
+    --teal: #146973;
+    --teal-dark: #0D4A52;
+    --teal-tint: #DEEEEF;
+    --amber: #F5C400;
+    --amber-tint: #FDF2C4;
+    --coral: #F0651E;
+    --coral-tint: #FCE2D3;
+    --green: #7CB342;
+    --green-tint: #E8F1DA;
+    --pink: #E91E8C;
+    --pink-tint: #FBDCEE;
+    --blue: #29ABE2;
+    --border: #E6E0CC;
+    --shadow: 0 2px 10px rgba(27,58,62,0.07);
+    --radius: 16px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{
+    font-family:'Baloo 2',cursive;
+    font-weight:600;
+    color:var(--teal-dark);
+    margin:0;
+  }
+  #app{
+    max-width:480px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--bg);
+    position:relative;
+    padding-bottom:84px;
+  }
+  /* header */
+  .topbar{
+    background:var(--teal);
+    color:#fff;
+    padding:22px 20px 34px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar .eyebrow{
+    font-size:12px;
+    letter-spacing:.04em;
+    opacity:.85;
+    margin-bottom:2px;
+  }
+  .topbar h1{
+    color:#fff;
+    font-size:22px;
+  }
+  .scallop{
+    position:absolute;
+    left:0; right:0; bottom:-1px;
+    height:16px;
+    background:
+      radial-gradient(circle at 8px 0, transparent 8px, var(--bg) 8.5px) 0 -8px / 16px 16px repeat-x;
+  }
+  .content{
+    padding:18px 16px 8px;
+  }
+  .section-title{
+    font-size:14px;
+    color:var(--ink-soft);
+    font-weight:500;
+    margin:22px 4px 10px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .section-title:first-child{margin-top:0;}
+  .card{
+    background:var(--paper);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 16px;
+    margin-bottom:10px;
+    box-shadow:var(--shadow);
+  }
+  .card.empty{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:14px;
+    padding:22px 16px;
+  }
+  .row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .pill{
+    display:inline-block;
+    font-size:12px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:999px;
+    background:var(--teal-tint);
+    color:var(--teal-dark);
+  }
+  .pill.amber{background:var(--amber-tint); color:#8A5A0E;}
+  .pill.coral{background:var(--coral-tint); color:#A83B27;}
+  .pill.green{background:var(--green-tint); color:#3F6B1F;}
+  .pill.pink{background:var(--pink-tint); color:#A11364;}
+  .muted{color:var(--ink-soft); font-size:13px;}
+  .card-title{font-weight:600; font-size:15.5px; margin:0 0 2px;}
+  .card-sub{font-size:13px; color:var(--ink-soft); margin:0;}
+  .tag-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .tag{
+    background:var(--teal-tint);
+    color:var(--teal-dark);
+    font-size:12.5px;
+    padding:3px 9px;
+    border-radius:999px;
+  }
+  .btn{
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--ink);
+    font-family:inherit;
+    font-size:14px;
+    font-weight:500;
+    padding:9px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn.primary{background:var(--teal); color:#fff; border-color:var(--teal);}
+  .btn.ghost{border:none; background:transparent; color:var(--teal-dark); padding:8px 4px;}
+  .btn.small{padding:6px 10px; font-size:13px;}
+  .btn.block{width:100%; justify-content:center;}
+  .btn.danger-ghost{color:var(--coral); border:none; background:transparent; padding:6px;}
+  .icon-btn{
+    width:34px; height:34px; border-radius:10px; border:1px solid var(--border);
+    background:#fff; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+  }
+  .fab{
+    position:fixed;
+    right:calc(50% - 240px + 18px);
+    bottom:92px;
+    width:52px; height:52px;
+    border-radius:50%;
+    background:var(--coral);
+    color:#fff;
+    border:none;
+    font-size:26px;
+    box-shadow:0 4px 14px rgba(232,106,85,.4);
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  @media (max-width:520px){
+    .fab{right:18px;}
+  }
+  /* bottom nav */
+  .navbar{
+    position:fixed;
+    left:0; right:0; bottom:0;
+    max-width:480px;
+    margin:0 auto;
+    background:#fff;
+    border-top:1px solid var(--border);
+    display:flex;
+    padding:8px 4px calc(8px + env(safe-area-inset-bottom));
+  }
+  .navbtn{
+    flex:1;
+    background:none; border:none;
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    padding:6px 2px;
+    color:var(--ink-soft);
+    font-family:inherit;
+    font-size:11px;
+    cursor:pointer;
+  }
+  .navbtn.active{color:var(--teal);}
+  .navbtn svg{width:22px;height:22px;}
+  .view{display:none;}
+  .view.active{display:block;}
+  /* form / modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(20,32,31,.45);
+    display:none; align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .overlay.open{display:flex;}
+  .sheet{
+    background:var(--bg);
+    width:100%; max-width:480px;
+    border-radius:20px 20px 0 0;
+    padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    max-height:88vh;
+    overflow-y:auto;
+  }
+  .sheet h2{font-size:18px; margin-bottom:14px;}
+  label{
+    display:block; font-size:13px; font-weight:500; color:var(--ink-soft);
+    margin:12px 0 5px;
+  }
+  input, textarea, select{
+    width:100%;
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    font-family:inherit;
+    font-size:14.5px;
+    background:#fff;
+    color:var(--ink);
+  }
+  textarea{resize:vertical; min-height:70px;}
+  .field-row{display:flex; gap:10px;}
+  .field-row > div{flex:1;}
+  .chip-select{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px;}
+  .chip{
+    border:1px solid var(--border); border-radius:999px; padding:6px 12px;
+    font-size:13.5px; cursor:pointer; background:#fff; color:var(--ink);
+  }
+  .chip.on{background:var(--teal); border-color:var(--teal); color:#fff;}
+  .sheet-actions{display:flex; gap:10px; margin-top:20px;}
+  .sheet-actions .btn{flex:1;}
+  .toast{
+    position:fixed; left:50%; transform:translateX(-50%);
+    bottom:100px; background:var(--teal-dark); color:#fff;
+    padding:10px 18px; border-radius:999px; font-size:13.5px;
+    z-index:80; opacity:0; transition:opacity .25s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1;}
+  .msg-preview{
+    background:var(--teal-tint); border-radius:12px; padding:12px 14px;
+    font-size:14px; white-space:pre-wrap; color:var(--teal-dark); margin-top:10px;
+    line-height:1.55;
+  }
+  .header-actions{display:flex; gap:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="row" style="align-items:flex-start">
+      <div>
+        <div class="eyebrow">Igreja Bíblica Batista de Pacatuba</div>
+        <h1>Ministério Infantil</h1>
+      </div>
+      <button id="btn-reports" aria-label="Relatórios" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+      </button>
+    </div>
+    <div class="scallop"></div>
+  </div>
+
+  <div class="content">
+
+    <!-- INÍCIO -->
+    <div class="view active" id="view-inicio">
+      <div class="section-title">Próximo compromisso</div>
+      <div id="next-schedule-box"></div>
+
+      <div class="section-title">Lembretes pendentes</div>
+      <div id="pending-reminders-box"></div>
+
+      <div class="section-title">Esta semana</div>
+      <div id="week-summary-box"></div>
+    </div>
+
+    <!-- ESCALAS -->
+    <div class="view" id="view-escalas">
+      <div class="section-title">Datas rápidas <span class="muted">toque para criar</span></div>
+      <div id="quick-dates" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:4px"></div>
+      <div class="section-title">Escalas <span class="muted" id="escalas-count"></span></div>
+      <div id="escalas-list"></div>
+    </div>
+
+    <!-- AULAS -->
+    <div class="view" id="view-aulas">
+      <div class="section-title">Conteúdo das aulas <span class="muted" id="aulas-count"></span></div>
+      <div id="aulas-list"></div>
+    </div>
+
+    <!-- LEMBRETES -->
+    <div class="view" id="view-lembretes">
+      <div class="section-title">Lembretes <span class="muted" id="lembretes-count"></span></div>
+      <div id="lembretes-list"></div>
+    </div>
+
+    <!-- VOLUNTÁRIOS -->
+    <div class="view" id="view-voluntarios">
+      <div class="section-title">Voluntários <span class="muted" id="voluntarios-count"></span></div>
+      <div id="voluntarios-list"></div>
+    </div>
+
+  </div>
+
+  <button class="fab" id="fab-add" aria-label="Adicionar">+</button>
+
+  <div class="navbar">
+    <button class="navbtn active" data-view="inicio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+      Início
+    </button>
+    <button class="navbtn" data-view="escalas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18"/><path d="M8 3v3"/><path d="M16 3v3"/></svg>
+      Escalas
+    </button>
+    <button class="navbtn" data-view="aulas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Aulas
+    </button>
+    <button class="navbtn" data-view="lembretes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      Lembretes
+    </button>
+    <button class="navbtn" data-view="voluntarios">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 2.9-6 6.5-6s6.5 2.5 6.5 6"/><path d="M16.5 4.5a3.2 3.2 0 0 1 0 6.3"/><path d="M17.5 14.3c2.6.5 4 2.6 4 5.7"/></svg>
+      Equipe
+    </button>
+  </div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+
+  var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [] };
+  var STORAGE_KEY = 'ministerio-data';
+  var loaded = false;
+
+  function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+
+  function todayISO(){
+    var d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+
+  function fmtDate(iso){
+    if(!iso) return '';
+    var parts = iso.split('-');
+    var d = new Date(parts[0], parts[1]-1, parts[2]);
+    var dias = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
+    var diaSemana = dias[d.getDay()];
+    return diaSemana.charAt(0).toUpperCase()+diaSemana.slice(1) + ', ' + parts[2] + '/' + parts[1];
+  }
+
+  function fmtDateShort(iso){
+    if(!iso) return '';
+    var p = iso.split('-');
+    return p[2]+'/'+p[1];
+  }
+
+  async function save(){
+    try{
+      await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), false);
+    }catch(e){ console.error('storage set failed', e); }
+  }
+
+  async function load(){
+    try{
+      var res = await window.storage.get(STORAGE_KEY, false);
+      if(res && res.value){
+        var parsed = JSON.parse(res.value);
+        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, parsed);
+      }
+    }catch(e){
+      // no data yet
+    }
+    loaded = true;
+    renderAll();
+  }
+
+  function showToast(msg){
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(function(){ t.classList.remove('show'); }, 1800);
+  }
+
+  // ---------- NAV ----------
+  var currentView = 'inicio';
+  document.querySelectorAll('.navbtn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      setView(btn.getAttribute('data-view'));
+    });
+  });
+
+  function setView(v){
+    currentView = v;
+    document.querySelectorAll('.view').forEach(function(el){ el.classList.remove('active'); });
+    document.getElementById('view-'+v).classList.add('active');
+    document.querySelectorAll('.navbtn').forEach(function(el){
+      el.classList.toggle('active', el.getAttribute('data-view')===v);
+    });
+  }
+
+  document.getElementById('fab-add').addEventListener('click', function(){
+    if(currentView==='escalas') openScheduleForm();
+    else if(currentView==='aulas') openLessonForm();
+    else if(currentView==='lembretes') openReminderForm();
+    else if(currentView==='voluntarios') openVolunteerForm();
+    else openScheduleForm();
+  });
+
+  // ---------- OVERLAY / SHEET ----------
+  var overlay = document.getElementById('overlay');
+  var sheet = document.getElementById('sheet');
+  overlay.addEventListener('click', function(e){ if(e.target===overlay) closeSheet(); });
+
+  function openSheet(html){
+    sheet.innerHTML = html;
+    overlay.classList.add('open');
+  }
+  function closeSheet(){
+    overlay.classList.remove('open');
+    sheet.innerHTML = '';
+  }
+
+  // ---------- VOLUNTÁRIOS ----------
+  function openVolunteerForm(id){
+    var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:''};
+    openSheet(
+      '<h2>'+(id?'Editar voluntário':'Novo voluntário')+'</h2>'+
+      '<label>Nome</label><input id="f-name" value="'+escapeAttr(v.name)+'" placeholder="Nome do voluntário">'+
+      '<label>Telefone (opcional)</label><input id="f-phone" value="'+escapeAttr(v.phone||'')+'" placeholder="(85) 90000-0000">'+
+      '<label>Observação (opcional)</label><input id="f-note" value="'+escapeAttr(v.note||'')+'" placeholder="Ex: prefere berçário">'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var name = document.getElementById('f-name').value.trim();
+      if(!name){ showToast('Digite um nome'); return; }
+      var obj = {
+        id: id || uid(),
+        name: name,
+        phone: document.getElementById('f-phone').value.trim(),
+        note: document.getElementById('f-note').value.trim()
+      };
+      if(id){
+        var idx = DATA.volunteers.findIndex(function(x){return x.id===id;});
+        DATA.volunteers[idx] = obj;
+      } else {
+        DATA.volunteers.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Voluntário salvo');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.volunteers = DATA.volunteers.filter(function(x){return x.id!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Removido');
+      };
+    }
+  }
+
+  function renderVolunteers(){
+    var list = document.getElementById('voluntarios-list');
+    document.getElementById('voluntarios-count').textContent = DATA.volunteers.length ? '('+DATA.volunteers.length+')' : '';
+    if(!DATA.volunteers.length){
+      list.innerHTML = '<div class="card empty">Nenhum voluntário cadastrado ainda.<br>Toque em + para adicionar.</div>';
+      return;
+    }
+    var sorted = DATA.volunteers.slice().sort(function(a,b){return a.name.localeCompare(b.name);});
+    list.innerHTML = sorted.map(function(v){
+      return '<div class="card row" onclick="window.__openVol(\''+v.id+'\')" style="cursor:pointer">'+
+        '<div><p class="card-title">'+escapeHtml(v.name)+'</p>'+
+        (v.phone?'<p class="card-sub">'+escapeHtml(v.phone)+'</p>':'')+
+        (v.note?'<p class="card-sub">'+escapeHtml(v.note)+'</p>':'')+
+        '</div></div>';
+    }).join('');
+  }
+  window.__openVol = openVolunteerForm;
+
+  function volunteerChipPicker(selectedIds){
+    if(!DATA.volunteers.length) return '<p class="muted">Cadastre voluntários na aba Equipe primeiro.</p>';
+    return '<div class="chip-select" id="vol-chips">' + DATA.volunteers.map(function(v){
+      var on = selectedIds.indexOf(v.id)>=0;
+      return '<div class="chip'+(on?' on':'')+'" data-id="'+v.id+'">'+escapeHtml(v.name)+'</div>';
+    }).join('') + '</div>';
+  }
+
+  // ---------- ESCALAS ----------
+  function openScheduleForm(id){
+    var s = id ? DATA.schedule.find(function(x){return x.id===id;}) : {date: todayISO(), tipo:'Domingo', className:'', volunteerIds:[], time:'', notes:''};
+    openSheet(
+      '<h2>'+(id?'Editar escala':'Nova escala')+'</h2>'+
+      '<div class="field-row"><div><label>Data</label><input type="date" id="f-date" value="'+s.date+'"></div>'+
+      '<div><label>Horário</label><input id="f-time" value="'+escapeAttr(s.time||'')+'" placeholder="08:30"></div></div>'+
+      '<label>Culto</label><div class="chip-select" id="tipo-chips">'+
+        '<div class="chip'+(s.tipo!=='Sábado'?' on':'')+'" data-tipo="Domingo">Domingo</div>'+
+        '<div class="chip'+(s.tipo==='Sábado'?' on':'')+'" data-tipo="Sábado">Sábado</div>'+
+      '</div>'+
+      '<label>Turma / sala</label><input id="f-class" value="'+escapeAttr(s.className)+'" placeholder="Ex: Berçário, Jardim, Juniores">'+
+      '<label>Voluntários escalados</label>'+
+      volunteerChipPicker(s.volunteerIds||[])+
+      '<label>Observações (opcional)</label><textarea id="f-notes" placeholder="Ex: chegar 30 min antes">'+escapeHtml(s.notes||'')+'</textarea>'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    var tipoSelected = s.tipo === 'Sábado' ? 'Sábado' : 'Domingo';
+    var tipoChips = document.getElementById('tipo-chips');
+    tipoChips.querySelectorAll('.chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        tipoSelected = c.getAttribute('data-tipo');
+        tipoChips.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        c.classList.add('on');
+      });
+    });
+    var chipsEl = document.getElementById('vol-chips');
+    var selected = (s.volunteerIds||[]).slice();
+    if(chipsEl){
+      chipsEl.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          var vid = c.getAttribute('data-id');
+          var i = selected.indexOf(vid);
+          if(i>=0){ selected.splice(i,1); c.classList.remove('on'); }
+          else{ selected.push(vid); c.classList.add('on'); }
+        });
+      });
+    }
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var className = document.getElementById('f-class').value.trim();
+      var date = document.getElementById('f-date').value;
+      if(!className || !date){ showToast('Preencha data e turma'); return; }
+      var obj = {
+        id: id || uid(),
+        date: date,
+        tipo: tipoSelected,
+        time: document.getElementById('f-time').value.trim(),
+        className: className,
+        volunteerIds: selected,
+        notes: document.getElementById('f-notes').value.trim()
+      };
+      if(id){
+        var idx = DATA.schedule.findIndex(function(x){return x.id===id;});
+        DATA.schedule[idx] = obj;
+      } else {
+        DATA.schedule.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Escala salva');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.schedule = DATA.schedule.filter(function(x){return x.id!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Removida');
+      };
+    }
+  }
+
+  function volunteerNames(ids){
+    return (ids||[]).map(function(id){
+      var v = DATA.volunteers.find(function(x){return x.id===id;});
+      return v ? v.name : null;
+    }).filter(Boolean);
+  }
+
+  function renderQuickDates(){
+    var box = document.getElementById('quick-dates');
+    var out = [];
+    var d = new Date();
+    for(var i=0; i<56; i++){
+      var day = d.getDay();
+      if(day===0 || day===6){
+        var iso = d.toISOString().slice(0,10);
+        var already = DATA.schedule.some(function(s){return s.date===iso;});
+        if(!already){
+          out.push({date: iso, tipo: day===0?'Domingo':'Sábado'});
+        }
+      }
+      d.setDate(d.getDate()+1);
+      if(out.length>=14) break;
+    }
+    box.innerHTML = out.map(function(o){
+      return '<div class="chip" style="flex:none;white-space:nowrap" onclick="window.__quickAdd(\''+o.date+'\',\''+o.tipo+'\')">'+
+        (o.tipo==='Domingo'?'Dom':'Sáb')+' '+fmtDateShort(o.date)+'</div>';
+    }).join('');
+  }
+  window.__quickAdd = function(date, tipo){
+    openScheduleForm();
+    document.getElementById('f-date').value = date;
+    var target = document.querySelector('#tipo-chips .chip[data-tipo="'+tipo+'"]');
+    if(target) target.click();
+  };
+
+  function renderSchedule(){
+    var list = document.getElementById('escalas-list');
+    var sorted = DATA.schedule.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    document.getElementById('escalas-count').textContent = sorted.length ? '('+sorted.length+')' : '';
+    if(!sorted.length){
+      list.innerHTML = '<div class="card empty">Nenhuma escala cadastrada ainda.<br>Toque em + para criar a primeira.</div>';
+      return;
+    }
+    var today = todayISO();
+    list.innerHTML = sorted.map(function(s){
+      var names = volunteerNames(s.volunteerIds);
+      var isPast = s.date < today;
+      return '<div class="card" onclick="window.__openSched(\''+s.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
+        '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p>'+
+        '<span style="display:flex;gap:5px"><span class="pill '+(s.tipo==='Sábado'?'green':'')+'">'+(s.tipo||'Domingo')+'</span><span class="pill">'+fmtDateShort(s.date)+'</span></span></div>'+
+        '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+        (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
+        (s.notes?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(s.notes)+'</p>':'')+
+        '</div>';
+    }).join('');
+  }
+  window.__openSched = openScheduleForm;
+
+  // ---------- AULAS ----------
+  function openLessonForm(id){
+    var l = id ? DATA.lessons.find(function(x){return x.id===id;}) : {date: todayISO(), title:'', verse:'', materials:'', activities:'', notes:''};
+    openSheet(
+      '<h2>'+(id?'Editar aula':'Nova aula')+'</h2>'+
+      '<label>Data</label><input type="date" id="f-date" value="'+l.date+'">'+
+      '<label>Tema da aula</label><input id="f-title" value="'+escapeAttr(l.title)+'" placeholder="Ex: A criação do mundo">'+
+      '<label>Versículo</label><input id="f-verse" value="'+escapeAttr(l.verse||'')+'" placeholder="Ex: Gênesis 1:1">'+
+      '<label>Materiais necessários</label><textarea id="f-materials" placeholder="Ex: cartolina, EVA, cola">'+escapeHtml(l.materials||'')+'</textarea>'+
+      '<label>Atividades</label><textarea id="f-activities" placeholder="Ex: dinâmica, desenho, versículo para decorar">'+escapeHtml(l.activities||'')+'</textarea>'+
+      '<label>Observações (opcional)</label><textarea id="f-notes">'+escapeHtml(l.notes||'')+'</textarea>'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var title = document.getElementById('f-title').value.trim();
+      var date = document.getElementById('f-date').value;
+      if(!title || !date){ showToast('Preencha data e tema'); return; }
+      var obj = {
+        id: id || uid(),
+        date: date,
+        title: title,
+        verse: document.getElementById('f-verse').value.trim(),
+        materials: document.getElementById('f-materials').value.trim(),
+        activities: document.getElementById('f-activities').value.trim(),
+        notes: document.getElementById('f-notes').value.trim()
+      };
+      if(id){
+        var idx = DATA.lessons.findIndex(function(x){return x.id===id;});
+        DATA.lessons[idx] = obj;
+      } else {
+        DATA.lessons.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Aula salva');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.lessons = DATA.lessons.filter(function(x){return x.id!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Removida');
+      };
+    }
+  }
+
+  function renderLessons(){
+    var list = document.getElementById('aulas-list');
+    var sorted = DATA.lessons.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    document.getElementById('aulas-count').textContent = sorted.length ? '('+sorted.length+')' : '';
+    if(!sorted.length){
+      list.innerHTML = '<div class="card empty">Nenhuma aula cadastrada ainda.<br>Toque em + para adicionar o conteúdo.</div>';
+      return;
+    }
+    var today = todayISO();
+    list.innerHTML = sorted.map(function(l){
+      var isPast = l.date < today;
+      return '<div class="card" onclick="window.__openLesson(\''+l.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
+        '<div class="row"><p class="card-title">'+escapeHtml(l.title)+'</p><span class="pill amber">'+fmtDateShort(l.date)+'</span></div>'+
+        (l.verse?'<p class="card-sub">📖 '+escapeHtml(l.verse)+'</p>':'')+
+        (l.materials?'<p class="card-sub" style="margin-top:4px">Materiais: '+escapeHtml(l.materials)+'</p>':'')+
+        '</div>';
+    }).join('');
+  }
+  window.__openLesson = openLessonForm;
+
+  // ---------- LEMBRETES ----------
+  function buildMessageFromSchedule(s){
+    var lesson = DATA.lessons.find(function(l){return l.date===s.date;});
+    var names = volunteerNames(s.volunteerIds);
+    var lines = [];
+    lines.push('📌 Ministério Infantil — ' + fmtDate(s.date));
+    lines.push('Turma: ' + s.className + (s.time?' · '+s.time:''));
+    if(names.length) lines.push('Escalados: ' + names.join(', '));
+    if(lesson){
+      lines.push('');
+      lines.push('Aula: ' + lesson.title);
+      if(lesson.verse) lines.push('Versículo: ' + lesson.verse);
+      if(lesson.materials) lines.push('Materiais: ' + lesson.materials);
+    }
+    if(s.notes) { lines.push(''); lines.push(s.notes); }
+    return lines.join('\n');
+  }
+
+  function openReminderForm(id, prefillMessage, prefillTitle){
+    var r = id ? DATA.reminders.find(function(x){return x.id===id;}) : {title: prefillTitle||'', date: todayISO(), message: prefillMessage||''};
+    openSheet(
+      '<h2>'+(id?'Editar lembrete':'Novo lembrete')+'</h2>'+
+      '<label>Título</label><input id="f-title" value="'+escapeAttr(r.title)+'" placeholder="Ex: Lembrete de domingo">'+
+      '<label>Data</label><input type="date" id="f-date" value="'+r.date+'">'+
+      '<label>Mensagem para o grupo</label><textarea id="f-message" rows="6" placeholder="Escreva a mensagem...">'+escapeHtml(r.message||'')+'</textarea>'+
+      '<p class="muted" style="margin-top:4px">Dica: você pode usar uma escala como base — vá em Escalas e toque em "Gerar lembrete" dentro de uma escala.</p>'+
+      '<div class="sheet-actions">'+
+        (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      var title = document.getElementById('f-title').value.trim();
+      if(!title){ showToast('Digite um título'); return; }
+      var obj = {
+        id: id || uid(),
+        title: title,
+        date: document.getElementById('f-date').value,
+        message: document.getElementById('f-message').value
+      };
+      if(id){
+        var idx = DATA.reminders.findIndex(function(x){return x.id===id;});
+        DATA.reminders[idx] = obj;
+      } else {
+        DATA.reminders.push(obj);
+      }
+      save(); renderAll(); closeSheet();
+      showToast('Lembrete salvo');
+    };
+    if(id){
+      document.getElementById('f-del').onclick = function(){
+        DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
+        save(); renderAll(); closeSheet();
+        showToast('Removido');
+      };
+    }
+  }
+
+  function openReminderView(id){
+    var r = DATA.reminders.find(function(x){return x.id===id;});
+    if(!r) return;
+    openSheet(
+      '<h2>'+escapeHtml(r.title)+'</h2>'+
+      '<p class="muted">'+fmtDate(r.date)+'</p>'+
+      '<div class="msg-preview" id="msg-text">'+escapeHtml(r.message)+'</div>'+
+      '<div class="sheet-actions">'+
+        '<button class="btn" id="f-copy">Copiar texto</button>'+
+        '<button class="btn primary" id="f-wa">Abrir no WhatsApp</button>'+
+      '</div>'+
+      '<div class="sheet-actions" style="margin-top:8px">'+
+        '<button class="btn ghost" id="f-edit">Editar</button>'+
+        '<button class="btn danger-ghost" id="f-del">Excluir</button>'+
+        '<button class="btn ghost" id="f-close">Fechar</button>'+
+      '</div>'
+    );
+    document.getElementById('f-close').onclick = closeSheet;
+    document.getElementById('f-edit').onclick = function(){ openReminderForm(id); };
+    document.getElementById('f-del').onclick = function(){
+      DATA.reminders = DATA.reminders.filter(function(x){return x.id!==id;});
+      save(); renderAll(); closeSheet();
+      showToast('Removido');
+    };
+    document.getElementById('f-copy').onclick = function(){ copyText(r.message); };
+    document.getElementById('f-wa').onclick = function(){
+      window.open('https://wa.me/?text='+encodeURIComponent(r.message), '_blank');
+    };
+  }
+
+  function copyText(text){
+    try{
+      navigator.clipboard.writeText(text).then(function(){
+        showToast('Texto copiado');
+      }).catch(function(){ fallbackCopy(text); });
+    }catch(e){ fallbackCopy(text); }
+  }
+  function fallbackCopy(text){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); showToast('Texto copiado'); }
+    catch(e){ showToast('Não foi possível copiar'); }
+    document.body.removeChild(ta);
+  }
+
+  function renderReminders(){
+    var list = document.getElementById('lembretes-list');
+    var sorted = DATA.reminders.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
+    document.getElementById('lembretes-count').textContent = sorted.length ? '('+sorted.length+')' : '';
+    if(!sorted.length){
+      list.innerHTML = '<div class="card empty">Nenhum lembrete criado ainda.<br>Toque em + para escrever um.</div>';
+      return;
+    }
+    var today = todayISO();
+    list.innerHTML = sorted.map(function(r){
+      var isPast = r.date < today;
+      return '<div class="card" onclick="window.__viewRem(\''+r.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
+        '<div class="row"><p class="card-title">'+escapeHtml(r.title)+'</p><span class="pill coral">'+fmtDateShort(r.date)+'</span></div>'+
+        '<p class="card-sub" style="margin-top:4px">'+escapeHtml((r.message||'').slice(0,70))+((r.message||'').length>70?'…':'')+'</p>'+
+        '</div>';
+    }).join('');
+  }
+  window.__viewRem = openReminderView;
+
+  // schedule -> generate reminder shortcut
+  function generateReminderFromSchedule(id){
+    var s = DATA.schedule.find(function(x){return x.id===id;});
+    if(!s) return;
+    var msg = buildMessageFromSchedule(s);
+    closeSheet();
+    setTimeout(function(){
+      openReminderForm(null, msg, 'Lembrete — ' + s.className + ' ' + fmtDateShort(s.date));
+    }, 150);
+  }
+  window.__genRem = generateReminderFromSchedule;
+
+  // add "Gerar lembrete" button inside schedule edit sheet
+  var origOpenScheduleForm = openScheduleForm;
+
+  // ---------- INÍCIO (dashboard) ----------
+  function renderDashboard(){
+    var today = todayISO();
+    var upcoming = DATA.schedule.filter(function(s){return s.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    var nextBox = document.getElementById('next-schedule-box');
+    if(!upcoming.length){
+      nextBox.innerHTML = '<div class="card empty">Nenhuma escala futura cadastrada.</div>';
+    } else {
+      var s = upcoming[0];
+      var names = volunteerNames(s.volunteerIds);
+      var lesson = DATA.lessons.find(function(l){return l.date===s.date;});
+      nextBox.innerHTML = '<div class="card">'+
+        '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p><span class="pill">'+fmtDateShort(s.date)+'</span></div>'+
+        '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+        (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'')+
+        (lesson?'<p class="card-sub" style="margin-top:8px">📖 '+escapeHtml(lesson.title)+'</p>':'')+
+        '<div class="sheet-actions" style="margin-top:12px">'+
+          '<button class="btn small" onclick="window.__openSched(\''+s.id+'\')">Ver escala</button>'+
+          '<button class="btn small primary" onclick="window.__genRem(\''+s.id+'\')">Gerar lembrete</button>'+
+        '</div>'+
+      '</div>';
+    }
+
+    var pendBox = document.getElementById('pending-reminders-box');
+    var pending = DATA.reminders.filter(function(r){return r.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+    if(!pending.length){
+      pendBox.innerHTML = '<div class="card empty">Sem lembretes pendentes.</div>';
+    } else {
+      pendBox.innerHTML = pending.slice(0,3).map(function(r){
+        return '<div class="card row" onclick="window.__viewRem(\''+r.id+'\')" style="cursor:pointer">'+
+          '<div><p class="card-title">'+escapeHtml(r.title)+'</p><p class="card-sub">'+fmtDate(r.date)+'</p></div>'+
+          '<span class="pill coral">enviar</span></div>';
+      }).join('');
+    }
+
+    var weekBox = document.getElementById('week-summary-box');
+    var in7 = new Date(); in7.setDate(in7.getDate()+7);
+    var in7iso = in7.toISOString().slice(0,10);
+    var weekSchedules = upcoming.filter(function(s){return s.date<=in7iso;});
+    var weekLessons = DATA.lessons.filter(function(l){return l.date>=today && l.date<=in7iso;});
+    weekBox.innerHTML = '<div class="card">'+
+      '<div class="row"><span class="muted">Escalas nos próximos 7 dias</span><strong>'+weekSchedules.length+'</strong></div>'+
+      '<div class="row" style="margin-top:8px"><span class="muted">Aulas planejadas</span><strong>'+weekLessons.length+'</strong></div>'+
+      '<div class="row" style="margin-top:8px"><span class="muted">Voluntários cadastrados</span><strong>'+DATA.volunteers.length+'</strong></div>'+
+    '</div>';
+  }
+
+  // ---------- helpers ----------
+  function escapeHtml(str){
+    if(str==null) return '';
+    return String(str).replace(/[&<>]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]; });
+  }
+  function escapeAttr(str){
+    if(str==null) return '';
+    return String(str).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+  }
+
+  function renderAll(){
+    if(!loaded) return;
+    renderDashboard();
+    renderQuickDates();
+    renderSchedule();
+    renderLessons();
+    renderReminders();
+    renderVolunteers();
+  }
+
+  // patch schedule sheet to add "gerar lembrete" button when editing existing
+  var _openScheduleForm = openScheduleForm;
+  openScheduleForm = function(id){
+    _openScheduleForm(id);
+    if(id){
+      var actions = sheet.querySelector('.sheet-actions');
+      if(actions){
+        var genBtn = document.createElement('button');
+        genBtn.className = 'btn block';
+        genBtn.textContent = 'Gerar mensagem de lembrete';
+        genBtn.style.marginTop = '10px';
+        genBtn.onclick = function(){ generateReminderFromSchedule(id); };
+        sheet.appendChild(genBtn);
+      }
+    }
+  };
+  window.__openSched = openScheduleForm;
+
+  // ---------- RELATÓRIOS ----------
+  function availableYears(){
+    var years = {};
+    DATA.schedule.forEach(function(s){ years[s.date.slice(0,4)] = true; });
+    DATA.lessons.forEach(function(l){ years[l.date.slice(0,4)] = true; });
+    var arr = Object.keys(years);
+    var thisYear = String(new Date().getFullYear());
+    if(arr.indexOf(thisYear)===-1) arr.push(thisYear);
+    return arr.sort().reverse();
+  }
+
+  function renderReport(year){
+    var scheds = DATA.schedule.filter(function(s){return s.date.slice(0,4)===year;});
+    var lessons = DATA.lessons.filter(function(l){return l.date.slice(0,4)===year;});
+    var domingos = scheds.filter(function(s){return s.tipo!=='Sábado';}).length;
+    var sabados = scheds.filter(function(s){return s.tipo==='Sábado';}).length;
+
+    var counts = {};
+    scheds.forEach(function(s){
+      (s.volunteerIds||[]).forEach(function(id){
+        counts[id] = (counts[id]||0)+1;
+      });
+    });
+    var ranking = Object.keys(counts).map(function(id){
+      var v = DATA.volunteers.find(function(x){return x.id===id;});
+      return {name: v?v.name:'(removido)', count: counts[id]};
+    }).sort(function(a,b){return b.count-a.count;});
+
+    var classCounts = {};
+    scheds.forEach(function(s){ classCounts[s.className] = (classCounts[s.className]||0)+1; });
+    var classList = Object.keys(classCounts).map(function(c){return {name:c, count:classCounts[c]};}).sort(function(a,b){return b.count-a.count;});
+
+    var years = availableYears();
+
+    return '<h2>Relatório · '+year+'</h2>'+
+      '<div class="chip-select" id="year-chips">'+years.map(function(y){
+        return '<div class="chip'+(y===year?' on':'')+'" data-year="'+y+'">'+y+'</div>';
+      }).join('')+'</div>'+
+      '<div class="card" style="margin-top:14px">'+
+        '<div class="row"><span class="muted">Total de escalas</span><strong>'+scheds.length+'</strong></div>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Cultos de domingo</span><strong>'+domingos+'</strong></div>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Cultos de sábado</span><strong>'+sabados+'</strong></div>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Aulas registradas</span><strong>'+lessons.length+'</strong></div>'+
+      '</div>'+
+      '<p class="section-title" style="margin-top:18px">Participação por voluntário</p>'+
+      (ranking.length ? '<div class="card">'+ranking.map(function(r,i){
+        return '<div class="row" style="'+(i>0?'margin-top:8px':'')+'"><span>'+escapeHtml(r.name)+'</span><span class="pill">'+r.count+'x</span></div>';
+      }).join('')+'</div>' : '<div class="card empty">Sem escalas neste ano.</div>')+
+      '<p class="section-title" style="margin-top:18px">Por turma</p>'+
+      (classList.length ? '<div class="card">'+classList.map(function(c,i){
+        return '<div class="row" style="'+(i>0?'margin-top:8px':'')+'"><span>'+escapeHtml(c.name)+'</span><span class="pill green">'+c.count+'x</span></div>';
+      }).join('')+'</div>' : '<div class="card empty">Sem escalas neste ano.</div>')+
+      '<div class="sheet-actions" style="margin-top:18px"><button class="btn ghost block" id="f-close">Fechar</button></div>';
+  }
+
+  function openReports(){
+    var year = String(new Date().getFullYear());
+    openSheet(renderReport(year));
+    wireReportSheet(year);
+  }
+  function wireReportSheet(year){
+    document.getElementById('f-close').onclick = closeSheet;
+    document.querySelectorAll('#year-chips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var y = c.getAttribute('data-year');
+        sheet.innerHTML = renderReport(y);
+        wireReportSheet(y);
+      });
+    });
+  }
+  document.getElementById('btn-reports').addEventListener('click', openReports);
+
+  load();
+})();
+</script>
+</body>
+</html>

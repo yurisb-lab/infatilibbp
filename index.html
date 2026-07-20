@@ -334,9 +334,14 @@
         <div class="eyebrow">Igreja Bíblica Batista de Pacatuba</div>
         <h1>Ministério Infantil</h1>
       </div>
-      <button id="btn-reports" aria-label="Relatórios" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
-      </button>
+      <div class="header-actions">
+        <button id="btn-settings" aria-label="Configurações" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button id="btn-reports" aria-label="Relatórios" style="background:rgba(255,255,255,.16);border:none;width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 15l4-5 3 3 5-7"/></svg>
+        </button>
+      </div>
     </div>
     <div class="scallop"></div>
   </div>
@@ -345,7 +350,7 @@
 
     <!-- INÍCIO -->
     <div class="view active" id="view-inicio">
-      <div class="section-title">Próximo compromisso</div>
+      <div class="section-title">Escala do próximo domingo</div>
       <div id="next-schedule-box"></div>
 
       <div class="section-title">Lembretes pendentes</div>
@@ -434,7 +439,7 @@ var firebaseConfig = {
 <script>
 (function(){
 
-  var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [] };
+  var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [], settings: { reminderDay: 5 } };
   var loaded = false;
 
   var CLASS_COLORS = {
@@ -544,13 +549,15 @@ var firebaseConfig = {
       var docRef = await db.collection('ministerio').doc('dados').get();
       if(docRef.exists){
         var parsed = JSON.parse(docRef.data().json);
-        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, parsed);
+        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],settings:{reminderDay:5}}, parsed);
+        if(!DATA.settings) DATA.settings = { reminderDay: 5 };
       }
       ensureClassesSeed();
       db.collection('ministerio').doc('dados').onSnapshot(function(doc){
         if(doc.exists && loaded){
           var fresh = JSON.parse(doc.data().json);
-          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, fresh);
+          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],settings:{reminderDay:5}}, fresh);
+          if(!DATA.settings) DATA.settings = { reminderDay: 5 };
           ensureClassesSeed();
           renderAll();
         }
@@ -1275,26 +1282,37 @@ var firebaseConfig = {
   var origOpenScheduleForm = openScheduleForm;
 
   // ---------- INÍCIO (dashboard) ----------
+  function nextSundayEntries(){
+    var today = todayISO();
+    var domingoUpcoming = DATA.schedule.filter(function(s){ return s.tipo!=='Sábado' && s.date>=today; })
+      .sort(function(a,b){ return a.date.localeCompare(b.date); });
+    if(!domingoUpcoming.length) return { date:null, items:[] };
+    var minDate = domingoUpcoming[0].date;
+    return { date: minDate, items: domingoUpcoming.filter(function(s){ return s.date===minDate; }) };
+  }
+
   function renderDashboard(){
     var today = todayISO();
-    var upcoming = DATA.schedule.filter(function(s){return s.date>=today;}).sort(function(a,b){return a.date.localeCompare(b.date);});
     var nextBox = document.getElementById('next-schedule-box');
-    if(!upcoming.length){
-      nextBox.innerHTML = '<div class="card empty">Nenhuma escala futura cadastrada.</div>';
+    var nb = nextSundayEntries();
+    if(!nb.items.length){
+      nextBox.innerHTML = '<div class="card empty">Nenhuma escala futura cadastrada para domingo.</div>';
     } else {
-      var s = upcoming[0];
-      var names = volunteerNames(s.volunteerIds);
-      var lesson = DATA.lessons.find(function(l){return l.date===s.date;});
-      nextBox.innerHTML = '<div class="card">'+
-        '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p><span class="pill">'+fmtDateShort(s.date)+'</span></div>'+
-        '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
-        (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'')+
-        (lesson?'<p class="card-sub" style="margin-top:8px">📖 '+escapeHtml(lesson.title)+'</p>':'')+
-        '<div class="sheet-actions" style="margin-top:12px">'+
-          '<button class="btn small" onclick="window.__openSched(\''+s.id+'\')">Ver escala</button>'+
-          '<button class="btn small primary" onclick="window.__genRem(\''+s.id+'\')">Gerar lembrete</button>'+
-        '</div>'+
-      '</div>';
+      nextBox.innerHTML = nb.items.map(function(s){
+        var names = volunteerNames(s.volunteerIds);
+        var matchedClass = findClassByName(s.className);
+        var lesson = matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : null;
+        return '<div class="card">'+
+          '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p><span class="pill">'+fmtDateShort(s.date)+'</span></div>'+
+          '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+          (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
+          (lesson?'<p class="card-sub" style="margin-top:8px">📖 '+escapeHtml(lesson.title)+'</p>':'')+
+          '<div class="sheet-actions" style="margin-top:12px">'+
+            '<button class="btn small" onclick="window.__openSched(\''+s.id+'\')">Ver escala</button>'+
+            '<button class="btn small primary" onclick="window.__genRem(\''+s.id+'\')">Gerar lembrete</button>'+
+          '</div>'+
+        '</div>';
+      }).join('');
     }
 
     var pendBox = document.getElementById('pending-reminders-box');
@@ -1312,7 +1330,7 @@ var firebaseConfig = {
     var weekBox = document.getElementById('week-summary-box');
     var in7 = new Date(); in7.setDate(in7.getDate()+7);
     var in7iso = in7.toISOString().slice(0,10);
-    var weekSchedules = upcoming.filter(function(s){return s.date<=in7iso;});
+    var weekSchedules = DATA.schedule.filter(function(s){return s.date>=today && s.date<=in7iso;});
     var weekLessons = DATA.lessons.filter(function(l){return l.date>=today && l.date<=in7iso;});
     weekBox.innerHTML = '<div class="card">'+
       '<div class="row"><span class="muted">Escalas nos próximos 7 dias</span><strong>'+weekSchedules.length+'</strong></div>'+
@@ -1339,6 +1357,7 @@ var firebaseConfig = {
     renderLessons();
     renderReminders();
     renderVolunteers();
+    checkReminderNotification();
   }
 
   // patch schedule sheet to add "gerar lembrete" button when editing existing
@@ -1358,6 +1377,88 @@ var firebaseConfig = {
     }
   };
   window.__openSched = openScheduleForm;
+
+  // ---------- CONFIGURAÇÕES / LEMBRETE DE ENVIO ----------
+  var WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+
+  function openSettingsForm(){
+    var current = (DATA.settings && typeof DATA.settings.reminderDay==='number') ? DATA.settings.reminderDay : 5;
+    var permStatus = ('Notification' in window) ? Notification.permission : 'unsupported';
+    var statusLabel = permStatus==='granted' ? 'ativadas ✅' : permStatus==='denied' ? 'bloqueadas no navegador' : permStatus==='unsupported' ? 'não suportadas neste navegador' : 'ainda não ativadas';
+    openSheet(
+      '<h2>Configurações</h2>'+
+      '<label>Dia da semana para lembrar de enviar a escala</label>'+
+      '<div class="chip-select" id="day-chips">'+ WEEKDAYS.map(function(w,i){
+        return '<div class="chip'+(i===current?' on':'')+'" data-day="'+i+'">'+w+'</div>';
+      }).join('') +'</div>'+
+      '<p class="muted" style="margin-top:10px">No dia escolhido, ao abrir o app vai aparecer uma notificação lembrando de enviar a escala do próximo domingo para os membros.</p>'+
+      '<label style="margin-top:16px">Notificações neste celular/navegador</label>'+
+      '<p class="card-sub">Status: '+statusLabel+'</p>'+
+      '<button class="btn primary block" id="f-enable-notif" style="margin-top:8px" type="button">Ativar notificações neste aparelho</button>'+
+      '<div class="sheet-actions" style="margin-top:20px">'+
+        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+        '<button class="btn primary" id="f-save">Salvar</button>'+
+      '</div>'
+    );
+    var selectedDay = current;
+    document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        selectedDay = parseInt(c.getAttribute('data-day'),10);
+        document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        c.classList.add('on');
+      });
+    });
+    document.getElementById('f-enable-notif').onclick = function(){ requestNotificationPermission(); };
+    document.getElementById('f-cancel').onclick = closeSheet;
+    document.getElementById('f-save').onclick = function(){
+      DATA.settings = DATA.settings || {};
+      DATA.settings.reminderDay = selectedDay;
+      save(); closeSheet();
+      showToast('Configuração salva');
+      checkReminderNotification();
+    };
+  }
+  document.getElementById('btn-settings').addEventListener('click', openSettingsForm);
+
+  function requestNotificationPermission(){
+    if(!('Notification' in window)){ showToast('Este navegador não suporta notificações'); return; }
+    Notification.requestPermission().then(function(perm){
+      if(perm==='granted'){ showToast('Notificações ativadas'); checkReminderNotification(); }
+      else if(perm==='denied'){ showToast('Permissão negada. Ative nas configurações do navegador.'); }
+      else { showToast('Permissão não concedida'); }
+    });
+  }
+
+  function checkReminderNotification(){
+    if(!('Notification' in window) || Notification.permission!=='granted') return;
+    var day = (DATA.settings && typeof DATA.settings.reminderDay==='number') ? DATA.settings.reminderDay : 5;
+    var now = new Date();
+    if(now.getDay()!==day) return;
+    var todayKey = todayISO();
+    var lastShown = null;
+    try{ lastShown = localStorage.getItem('lembreteEscalaNotifDate'); }catch(e){}
+    if(lastShown===todayKey) return; // já mostrada hoje
+    var nb = nextSundayEntries();
+    var body = nb.items.length
+      ? 'Hoje é o dia combinado para enviar a escala de domingo (' + fmtDateShort(nb.date) + ') para os membros.'
+      : 'Hoje é o dia combinado para enviar a escala aos membros.';
+    var title = 'Ministério Infantil — Lembrete';
+    var shown = function(){
+      try{ localStorage.setItem('lembreteEscalaNotifDate', todayKey); }catch(e){}
+    };
+    if('serviceWorker' in navigator){
+      navigator.serviceWorker.ready.then(function(reg){
+        reg.showNotification(title, { body: body, icon:'icon-192.png' });
+        shown();
+      }).catch(function(){
+        try{ new Notification(title, { body: body }); }catch(e){}
+        shown();
+      });
+    } else {
+      try{ new Notification(title, { body: body }); }catch(e){}
+      shown();
+    }
+  }
 
   // ---------- RELATÓRIOS ----------
   function availableYears(){
@@ -1432,6 +1533,7 @@ var firebaseConfig = {
   document.getElementById('btn-reports').addEventListener('click', openReports);
 
   load();
+  setInterval(checkReminderNotification, 60*60*1000);
 })();
 
 if('serviceWorker' in navigator){

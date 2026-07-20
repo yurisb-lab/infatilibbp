@@ -341,12 +341,36 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+<script>
+// ATENÇÃO: cole aqui o firebaseConfig que você copiou do Console do Firebase.
+var firebaseConfig = {
+  apiKey: "COLOQUE_AQUI",
+  authDomain: "COLOQUE_AQUI",
+  projectId: "COLOQUE_AQUI",
+  storageBucket: "COLOQUE_AQUI",
+  messagingSenderId: "COLOQUE_AQUI",
+  appId: "COLOQUE_AQUI"
+};
+</script>
 <script>
 (function(){
 
   var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [] };
-  var STORAGE_KEY = 'ministerio-data';
   var loaded = false;
+  var db = null;
+  var configOk = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'COLOQUE_AQUI';
+
+  if(configOk){
+    try{
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.firestore();
+    }catch(e){
+      console.error('Erro ao iniciar o Firebase', e);
+      configOk = false;
+    }
+  }
 
   function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 
@@ -371,23 +395,51 @@
   }
 
   async function save(){
+    if(!configOk){ showToast('Firebase não configurado ainda'); return; }
     try{
-      await window.storage.set(STORAGE_KEY, JSON.stringify(DATA), false);
-    }catch(e){ console.error('storage set failed', e); }
+      await db.collection('ministerio').doc('dados').set({ json: JSON.stringify(DATA), atualizadoEm: new Date().toISOString() });
+    }catch(e){
+      console.error('Erro ao salvar no Firestore', e);
+      showToast('Erro ao salvar. Verifique sua conexão.');
+    }
   }
 
   async function load(){
+    if(!configOk){
+      showConfigBanner();
+      loaded = true;
+      renderAll();
+      return;
+    }
     try{
-      var res = await window.storage.get(STORAGE_KEY, false);
-      if(res && res.value){
-        var parsed = JSON.parse(res.value);
+      var docRef = await db.collection('ministerio').doc('dados').get();
+      if(docRef.exists){
+        var parsed = JSON.parse(docRef.data().json);
         DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, parsed);
       }
+      db.collection('ministerio').doc('dados').onSnapshot(function(doc){
+        if(doc.exists && loaded){
+          var fresh = JSON.parse(doc.data().json);
+          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[]}, fresh);
+          renderAll();
+        }
+      });
     }catch(e){
-      // no data yet
+      console.error('Erro ao carregar do Firestore', e);
+      showToast('Não foi possível carregar os dados.');
     }
     loaded = true;
     renderAll();
+  }
+
+  function showConfigBanner(){
+    var box = document.getElementById('next-schedule-box');
+    if(box){
+      box.innerHTML = '<div class="card" style="border-color:var(--coral)">'+
+        '<p class="card-title" style="color:var(--coral)">Firebase não configurado</p>'+
+        '<p class="card-sub">Abra o arquivo index.html e cole seu firebaseConfig no topo do código, dentro da tag &lt;script&gt; logo acima do app.</p>'+
+      '</div>';
+    }
   }
 
   function showToast(msg){

@@ -365,7 +365,9 @@
 
     <!-- ESCALAS -->
     <div class="view" id="view-escalas">
-      <div class="section-title">Escalas <span class="muted" id="escalas-count"></span></div>
+      <div class="section-title">Escalas <span class="muted" id="escalas-count"></span>
+        <button class="btn small" id="btn-export" style="margin-left:auto">Exportar</button>
+      </div>
       <div id="escalas-list"></div>
     </div>
 
@@ -683,6 +685,7 @@ var firebaseConfig = {
   document.getElementById('btn-new-volunteer').addEventListener('click', function(){ openVolunteerForm(); });
   document.getElementById('btn-new-child').addEventListener('click', function(){ openChildForm(); });
   document.getElementById('btn-new-message').addEventListener('click', function(){ openMessageForm(); });
+  document.getElementById('btn-export').addEventListener('click', function(){ openExportForm(); });
 
   var childrenSearchTerm = '';
   document.getElementById('criancas-search').addEventListener('input', function(e){
@@ -1311,6 +1314,239 @@ var firebaseConfig = {
     }).join('');
   }
   window.__openSched = openScheduleForm;
+
+  // ---------- EXPORTAR ESCALAS (texto) ----------
+  function pad2(n){ return (n<10?'0':'')+n; }
+
+  function monthLabel(m){
+    var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    return meses[m];
+  }
+
+  function lastDayOfMonth(year, month){ // month 0-11
+    return new Date(year, month+1, 0).getDate();
+  }
+
+  function computeExportRange(state){
+    if(state.period==='mes'){
+      var parts = (state.month || todayISO().slice(0,7)).split('-');
+      var y = parseInt(parts[0],10), m = parseInt(parts[1],10)-1;
+      var start = y+'-'+pad2(m+1)+'-01';
+      var end = y+'-'+pad2(m+1)+'-'+pad2(lastDayOfMonth(y,m));
+      return { start:start, end:end, label: monthLabel(m)+' de '+y };
+    }
+    if(state.period==='semestre'){
+      var y2 = state.semYear || new Date().getFullYear();
+      if(state.sem===1){
+        return { start:y2+'-01-01', end:y2+'-06-30', label:'1º semestre de '+y2 };
+      }
+      return { start:y2+'-07-01', end:y2+'-12-31', label:'2º semestre de '+y2 };
+    }
+    // personalizado
+    var s = state.startDate || todayISO();
+    var e = state.endDate || todayISO();
+    return { start:s, end:e, label: fmtDateShort(s)+'/'+s.slice(0,4)+' a '+fmtDateShort(e)+'/'+e.slice(0,4) };
+  }
+
+  function scheduleExportLines(s){
+    var out = [];
+    var names = volunteerNames(s.volunteerIds);
+    out.push(fmtDate(s.date)+(s.time?' às '+s.time:''));
+    out.push('Escalados: '+(names.length?names.join(', '):'—'));
+    var lesson = s.lessonId ? lessonById(s.lessonId) : null;
+    if(lesson) out.push('Aula: '+lesson.title);
+    if(s.notes) out.push('Obs: '+s.notes);
+    return out;
+  }
+
+  function buildExportText(state){
+    var range = computeExportRange(state);
+    var scheds = DATA.schedule.filter(function(s){ return s.date>=range.start && s.date<=range.end; });
+    if(state.classId){
+      scheds = scheds.filter(function(s){ return s.classId===state.classId; });
+    }
+    scheds.sort(function(a,b){ return a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''); });
+
+    var scopeLabel = 'Todas as turmas';
+    if(state.classId){
+      var cls = DATA.classes.find(function(c){return c.id===state.classId;});
+      if(cls) scopeLabel = cls.name;
+    }
+
+    var lines = [];
+    lines.push('📋 ESCALAS — MINISTÉRIO INFANTIL');
+    lines.push('Turma: '+scopeLabel);
+    lines.push('Período: '+range.label);
+    lines.push('');
+
+    if(!scheds.length){
+      lines.push('Nenhuma escala encontrada neste período.');
+      return lines.join('\n');
+    }
+
+    if(!state.classId){
+      // agrupa por turma
+      var groups = {}; var order = [];
+      scheds.forEach(function(s){
+        var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
+        var key = matchedClass ? matchedClass.id : ('__'+s.className);
+        var name = matchedClass ? matchedClass.name : s.className;
+        if(!groups[key]){ groups[key] = { name:name, items:[] }; order.push(key); }
+        groups[key].items.push(s);
+      });
+      order.forEach(function(key, gi){
+        var g = groups[key];
+        if(gi>0) lines.push('');
+        lines.push('— '+g.name.toUpperCase()+' —');
+        g.items.forEach(function(s){
+          lines.push('');
+          scheduleExportLines(s).forEach(function(l){ lines.push(l); });
+        });
+      });
+    } else {
+      scheds.forEach(function(s, i){
+        if(i>0) lines.push('');
+        scheduleExportLines(s).forEach(function(l){ lines.push(l); });
+      });
+    }
+
+    lines.push('');
+    lines.push('Total: '+scheds.length+' escala'+(scheds.length===1?'':'s'));
+    return lines.join('\n');
+  }
+
+  function downloadTextFile(text, filename){
+    try{
+      var blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      showToast('Arquivo baixado');
+    }catch(e){
+      showToast('Não foi possível baixar o arquivo');
+    }
+  }
+
+  function openExportForm(){
+    var now = new Date();
+    var state = {
+      period: 'mes',
+      month: todayISO().slice(0,7),
+      semYear: now.getFullYear(),
+      sem: (now.getMonth()<6) ? 1 : 2,
+      startDate: todayISO(),
+      endDate: todayISO(),
+      classId: ''
+    };
+
+    function periodFieldsHtml(){
+      if(state.period==='mes'){
+        return '<label>Mês</label><input type="month" id="f-month" value="'+state.month+'">';
+      }
+      if(state.period==='semestre'){
+        return '<div class="field-row">'+
+          '<div><label>Ano</label><input type="number" id="f-sem-year" value="'+state.semYear+'"></div>'+
+          '<div><label>Semestre</label><div class="chip-select" id="sem-chips">'+
+            '<div class="chip'+(state.sem===1?' on':'')+'" data-sem="1">1º</div>'+
+            '<div class="chip'+(state.sem===2?' on':'')+'" data-sem="2">2º</div>'+
+          '</div></div>'+
+        '</div>';
+      }
+      return '<div class="field-row">'+
+        '<div><label>De</label><input type="date" id="f-start" value="'+state.startDate+'"></div>'+
+        '<div><label>Até</label><input type="date" id="f-end" value="'+state.endDate+'"></div>'+
+      '</div>';
+    }
+
+    function html(){
+      return '<h2>Exportar escalas</h2>'+
+        '<label>Turma</label>'+
+        '<div class="chip-select" id="export-class-chips">'+
+          '<div class="chip'+(!state.classId?' on':'')+'" data-classid="">Todas as turmas</div>'+
+          DATA.classes.map(function(c){
+            return '<div class="chip'+(state.classId===c.id?' on':'')+'" data-classid="'+c.id+'">'+escapeHtml(c.name)+'</div>';
+          }).join('')+
+        '</div>'+
+        '<label>Período</label>'+
+        '<div class="chip-select" id="period-chips">'+
+          '<div class="chip'+(state.period==='mes'?' on':'')+'" data-period="mes">Mês</div>'+
+          '<div class="chip'+(state.period==='semestre'?' on':'')+'" data-period="semestre">Semestre</div>'+
+          '<div class="chip'+(state.period==='personalizado'?' on':'')+'" data-period="personalizado">Personalizado</div>'+
+        '</div>'+
+        '<div id="period-fields" style="margin-top:8px">'+periodFieldsHtml()+'</div>'+
+        '<label style="margin-top:14px">Prévia</label>'+
+        '<textarea id="f-export-text" rows="12">'+escapeHtml(buildExportText(state))+'</textarea>'+
+        '<div class="sheet-actions">'+
+          '<button class="btn" id="f-copy">Copiar texto</button>'+
+          '<button class="btn primary" id="f-download">Baixar .txt</button>'+
+        '</div>'+
+        '<div class="sheet-actions" style="margin-top:8px">'+
+          '<button class="btn ghost block" id="f-close">Fechar</button>'+
+        '</div>';
+    }
+
+    function refreshPreview(){
+      var ta = document.getElementById('f-export-text');
+      if(ta) ta.value = buildExportText(state);
+    }
+
+    function wirePeriodFields(){
+      var monthEl = document.getElementById('f-month');
+      if(monthEl){ monthEl.addEventListener('change', function(){ state.month = monthEl.value; refreshPreview(); }); }
+      var semYearEl = document.getElementById('f-sem-year');
+      if(semYearEl){ semYearEl.addEventListener('change', function(){ state.semYear = parseInt(semYearEl.value,10)||state.semYear; refreshPreview(); }); }
+      var semChips = document.getElementById('sem-chips');
+      if(semChips){
+        semChips.querySelectorAll('.chip').forEach(function(c){
+          c.addEventListener('click', function(){
+            state.sem = parseInt(c.getAttribute('data-sem'),10);
+            semChips.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+            c.classList.add('on');
+            refreshPreview();
+          });
+        });
+      }
+      var startEl = document.getElementById('f-start');
+      if(startEl){ startEl.addEventListener('change', function(){ state.startDate = startEl.value; refreshPreview(); }); }
+      var endEl = document.getElementById('f-end');
+      if(endEl){ endEl.addEventListener('change', function(){ state.endDate = endEl.value; refreshPreview(); }); }
+    }
+
+    function wire(){
+      document.getElementById('export-class-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          state.classId = c.getAttribute('data-classid');
+          document.getElementById('export-class-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          c.classList.add('on');
+          refreshPreview();
+        });
+      });
+      document.getElementById('period-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          state.period = c.getAttribute('data-period');
+          document.getElementById('period-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          c.classList.add('on');
+          document.getElementById('period-fields').innerHTML = periodFieldsHtml();
+          wirePeriodFields();
+          refreshPreview();
+        });
+      });
+      wirePeriodFields();
+      document.getElementById('f-close').onclick = closeSheet;
+      document.getElementById('f-copy').onclick = function(){
+        copyText(document.getElementById('f-export-text').value);
+      };
+      document.getElementById('f-download').onclick = function(){
+        downloadTextFile(document.getElementById('f-export-text').value, 'escalas.txt');
+      };
+    }
+
+    openSheet(html());
+    wire();
+  }
+  window.__openExport = openExportForm;
 
   // ---------- TURMAS ----------
   function openClassForm(id){

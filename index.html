@@ -379,6 +379,20 @@
   }
   .pill.status-warn{background:#FCE2D3; color:#A83B27;}
   .pill.status-sub{background:var(--amber-tint); color:#8A5A0E;}
+
+  /* equipe - grade de 2 colunas */
+  .vol-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .vol-grid .card{
+    margin-bottom:0;
+    padding:12px 12px;
+  }
+  .vol-card-name{font-weight:600; font-size:14px; margin:0; line-height:1.25;}
+  .vol-card-role{margin-top:4px;}
 </style>
 </head>
 <body>
@@ -1055,20 +1069,34 @@ var firebaseConfig = {
         (yr.byClass.length?'<p class="card-sub" style="margin-top:8px">Turmas: '+yr.byClass.map(function(c){return escapeHtml(c.name)+' ('+c.count+')';}).join(', ')+'</p>':'')+
       '</div>';
       if(history.length){
-        statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
-          '<p class="card-title" style="font-size:14px;margin-bottom:8px">🗓️ Dias em que serviu</p>'+
-          history.map(function(h,i){
-            var badges = '';
-            if(h.teacherAbsent) badges += ' <span class="pill status-warn">❌ Faltou</span>';
-            if(h.teacherSubstituted) badges += ' <span class="pill status-sub">🔄 Substituído'+(h.substituteName?': '+escapeHtml(h.substituteName):'')+'</span>';
-            return '<div style="'+(i>0?'margin-top:8px;padding-top:8px;border-top:1px solid var(--border)':'')+'">'+
-              '<div class="row" style="align-items:flex-start">'+
-                '<span style="font-size:13.5px">'+fmtDate(h.date)+'<br><span class="muted" style="font-size:12px">'+escapeHtml(h.className)+(h.tipo?' · '+escapeHtml(h.tipo):'')+'</span></span>'+
-              '</div>'+
-              (badges?'<div class="tag-row" style="margin-top:4px">'+badges+'</div>':'')+
-            '</div>';
-          }).join('')+
-        '</div>';
+        var todayIsoForHist = todayISO();
+        var futureHist = history.filter(function(h){ return h.date>=todayIsoForHist; }).slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+        var pastHist = history.filter(function(h){ return h.date<todayIsoForHist; }); // já vem ordenado do mais recente para o mais antigo
+
+        function histItemHtml(h, i){
+          var badges = '';
+          if(h.teacherAbsent) badges += ' <span class="pill status-warn">❌ Faltou</span>';
+          if(h.teacherSubstituted) badges += ' <span class="pill status-sub">🔄 Substituído'+(h.substituteName?': '+escapeHtml(h.substituteName):'')+'</span>';
+          return '<div style="'+(i>0?'margin-top:8px;padding-top:8px;border-top:1px solid var(--border)':'')+'">'+
+            '<div class="row" style="align-items:flex-start">'+
+              '<span style="font-size:13.5px">'+fmtDate(h.date)+'<br><span class="muted" style="font-size:12px">'+escapeHtml(h.className)+(h.tipo?' · '+escapeHtml(h.tipo):'')+'</span></span>'+
+            '</div>'+
+            (badges?'<div class="tag-row" style="margin-top:4px">'+badges+'</div>':'')+
+          '</div>';
+        }
+
+        if(futureHist.length){
+          statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
+            '<p class="card-title" style="font-size:14px;margin-bottom:8px">📅 Próximas escalas</p>'+
+            futureHist.map(histItemHtml).join('')+
+          '</div>';
+        }
+        if(pastHist.length){
+          statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
+            '<p class="card-title" style="font-size:14px;margin-bottom:8px">🗓️ Escalas anteriores</p>'+
+            pastHist.map(histItemHtml).join('')+
+          '</div>';
+        }
       }
     }
     openSheet(
@@ -1228,14 +1256,12 @@ var firebaseConfig = {
       }).filter(Boolean);
       var stats = computeVolunteerStats(v.id);
       var loadInfo = stats.last
-        ? stats.emoji+' '+stats.level+' · há '+stats.daysSince+'d · '+stats.thisMonth+'x este mês'+(stats.streak>=2?' · '+stats.streak+' seguidos':'')
-        : '⚪ ainda não escalado(a)';
+        ? stats.emoji+' '+stats.level+' · há '+stats.daysSince+'d · '+stats.thisMonth+'x/mês'
+        : '⚪ nunca escalado(a)';
       return '<div class="card" onclick="window.__openVol(\''+v.id+'\')" style="cursor:pointer">'+
-        '<div class="row">'+
-          '<p class="card-title" style="margin:0">'+escapeHtml(v.name)+'</p>'+
-          (v.role?'<span class="pill">'+escapeHtml(v.role)+'</span>':'')+
-        '</div>'+
-        (v.phone?'<p class="card-sub" style="margin-top:2px">'+escapeHtml(v.phone)+'</p>':'')+
+        '<p class="vol-card-name">'+escapeHtml(v.name)+'</p>'+
+        (v.role?'<div class="vol-card-role"><span class="pill">'+escapeHtml(v.role)+'</span></div>':'')+
+        (v.phone?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(v.phone)+'</p>':'')+
         (v.note?'<p class="card-sub">'+escapeHtml(v.note)+'</p>':'')+
         '<p class="card-sub" style="margin-top:4px">'+loadInfo+'</p>'+
         (classNames.length
@@ -1253,7 +1279,7 @@ var firebaseConfig = {
       }).sort(function(a,b){return a.name.localeCompare(b.name);});
       if(!members.length) return;
       html += '<p class="section-title" style="margin:18px 4px 8px">'+g+' <span class="muted">('+members.length+')</span></p>';
-      html += members.map(renderVolCard).join('');
+      html += '<div class="vol-grid">'+members.map(renderVolCard).join('')+'</div>';
     });
     list.innerHTML = html;
   }
@@ -4020,22 +4046,90 @@ var doc = new window.jspdf.jsPDF({ orientation:'portrait', unit:'pt', format:'a4
     return arr.sort().reverse();
   }
 
-  function renderReport(year){
+  var REPORT_SORTS = [
+    { key:'escalado',  label:'Mais escalado(a)' },
+    { key:'faltas',    label:'Mais faltas' },
+    { key:'presenca',  label:'Menor presença' },
+    { key:'nome',      label:'A-Z' }
+  ];
+  var REPORT_ROLE_FILTERS = ['Todos'].concat(FUNCOES);
+
+  // agrupa escalado / compareceu / faltou / substituído por voluntário, dentro de um conjunto de escalas já filtrado por ano
+  function computeVolunteerYearParticipation(scheds){
+    var statsMap = {};
+    scheds.forEach(function(s){
+      (s.volunteerIds||[]).forEach(function(id){
+        if(!statsMap[id]) statsMap[id] = { escalado:0, faltou:0, substituido:0 };
+        statsMap[id].escalado++;
+        if(s.teacherAbsent) statsMap[id].faltou++;
+        if(s.teacherSubstituted) statsMap[id].substituido++;
+      });
+    });
+    return Object.keys(statsMap).map(function(id){
+      var v = DATA.volunteers.find(function(x){return x.id===id;});
+      var st = statsMap[id];
+      var compareceu = st.escalado - st.faltou;
+      var presencaPct = st.escalado ? Math.round((compareceu/st.escalado)*100) : 100;
+      return {
+        id: id,
+        name: v ? v.name : '(removido)',
+        role: v ? (v.role||'') : '',
+        escalado: st.escalado,
+        compareceu: compareceu,
+        faltou: st.faltou,
+        substituido: st.substituido,
+        presencaPct: presencaPct
+      };
+    });
+  }
+
+  function sortParticipation(list, sortKey){
+    var arr = list.slice();
+    if(sortKey==='faltas') arr.sort(function(a,b){ return b.faltou-a.faltou || b.escalado-a.escalado; });
+    else if(sortKey==='presenca') arr.sort(function(a,b){ return a.presencaPct-b.presencaPct || b.escalado-a.escalado; });
+    else if(sortKey==='nome') arr.sort(function(a,b){ return a.name.localeCompare(b.name); });
+    else arr.sort(function(a,b){ return b.escalado-a.escalado; });
+    return arr;
+  }
+
+  function participationRowHtml(r){
+    var presColor = r.presencaPct>=90 ? 'green' : (r.presencaPct>=70 ? 'amber' : 'coral');
+    return '<div style="padding:9px 0;border-bottom:1px solid var(--border)">'+
+      '<div class="row" style="align-items:flex-start">'+
+        '<div>'+
+          '<div style="font-weight:600;font-size:13.5px">'+escapeHtml(r.name)+'</div>'+
+          (r.role?'<div class="muted" style="font-size:11.5px;margin-top:1px">'+escapeHtml(r.role)+'</div>':'')+
+        '</div>'+
+        '<span class="pill '+presColor+'" style="flex:none">'+r.presencaPct+'% presença</span>'+
+      '</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">'+
+        '<span class="pill">Escalado '+r.escalado+'x</span>'+
+        '<span class="pill green">Compareceu '+r.compareceu+'x</span>'+
+        (r.faltou?'<span class="pill status-warn">Faltou '+r.faltou+'x</span>':'')+
+        (r.substituido?'<span class="pill status-sub">Substituído '+r.substituido+'x</span>':'')+
+      '</div>'+
+    '</div>';
+  }
+
+  function renderReport(year, sortKey, roleFilter){
+    sortKey = sortKey || 'escalado';
+    roleFilter = roleFilter || 'Todos';
     var scheds = DATA.schedule.filter(function(s){return s.date.slice(0,4)===year;});
     var lessons = DATA.lessons.filter(function(l){return l.date && l.date.slice(0,4)===year;});
     var domingos = scheds.filter(function(s){return s.tipo!=='Sábado';}).length;
     var sabados = scheds.filter(function(s){return s.tipo==='Sábado';}).length;
 
-    var counts = {};
-    scheds.forEach(function(s){
-      (s.volunteerIds||[]).forEach(function(id){
-        counts[id] = (counts[id]||0)+1;
-      });
+    var participation = computeVolunteerYearParticipation(scheds);
+    var filtered = roleFilter==='Todos' ? participation : participation.filter(function(r){return r.role===roleFilter;});
+    var ranking = sortParticipation(filtered, sortKey);
+
+    var totalEscaladoSum = participation.reduce(function(a,r){return a+r.escalado;},0);
+    var totalFaltas = participation.reduce(function(a,r){return a+r.faltou;},0);
+    var presencaGeral = totalEscaladoSum ? Math.round(((totalEscaladoSum-totalFaltas)/totalEscaladoSum)*100) : 0;
+
+    var neverScheduled = DATA.volunteers.filter(function(v){
+      return !participation.some(function(r){return r.id===v.id;});
     });
-    var ranking = Object.keys(counts).map(function(id){
-      var v = DATA.volunteers.find(function(x){return x.id===id;});
-      return {name: v?v.name:'(removido)', count: counts[id]};
-    }).sort(function(a,b){return b.count-a.count;});
 
     var classCounts = {};
     scheds.forEach(function(s){ classCounts[s.className] = (classCounts[s.className]||0)+1; });
@@ -4052,11 +4146,23 @@ var doc = new window.jspdf.jsPDF({ orientation:'portrait', unit:'pt', format:'a4
         '<div class="row" style="margin-top:8px"><span class="muted">Cultos de domingo</span><strong>'+domingos+'</strong></div>'+
         '<div class="row" style="margin-top:8px"><span class="muted">Cultos de sábado</span><strong>'+sabados+'</strong></div>'+
         '<div class="row" style="margin-top:8px"><span class="muted">Aulas registradas</span><strong>'+lessons.length+'</strong></div>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Faltas no ano</span><strong>'+totalFaltas+'</strong></div>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Presença geral da equipe</span><strong>'+presencaGeral+'%</strong></div>'+
       '</div>'+
       '<p class="section-title" style="margin-top:18px">Participação por voluntário</p>'+
-      (ranking.length ? '<div class="card">'+ranking.map(function(r,i){
-        return '<div class="row" style="'+(i>0?'margin-top:8px':'')+'"><span>'+escapeHtml(r.name)+'</span><span class="pill">'+r.count+'x</span></div>';
-      }).join('')+'</div>' : '<div class="card empty">Sem escalas neste ano.</div>')+
+      '<div class="chip-select" id="report-sort-chips">'+REPORT_SORTS.map(function(s){
+        return '<div class="chip'+(sortKey===s.key?' on':'')+'" data-sort="'+s.key+'">'+s.label+'</div>';
+      }).join('')+'</div>'+
+      '<div class="chip-select" id="report-role-chips" style="margin-top:8px">'+REPORT_ROLE_FILTERS.map(function(f){
+        return '<div class="chip'+(roleFilter===f?' on':'')+'" data-role="'+f+'">'+f+'</div>';
+      }).join('')+'</div>'+
+      (ranking.length
+        ? '<div class="card" style="margin-top:10px;padding:0 14px">'+ranking.map(participationRowHtml).join('')+'</div>'
+        : '<div class="card empty" style="margin-top:10px">Nenhuma escala encontrada para este filtro.</div>')+
+      (neverScheduled.length
+        ? '<p class="section-title" style="margin-top:18px">⭐ Nunca escalados em '+year+' <span class="muted">('+neverScheduled.length+')</span></p>'+
+          '<div class="card"><div class="tag-row">'+neverScheduled.map(function(v){return '<span class="tag">'+escapeHtml(v.name)+'</span>';}).join('')+'</div></div>'
+        : '')+
       '<p class="section-title" style="margin-top:18px">Por turma</p>'+
       (classList.length ? '<div class="card">'+classList.map(function(c,i){
         return '<div class="row" style="'+(i>0?'margin-top:8px':'')+'"><span>'+escapeHtml(c.name)+'</span><span class="pill green">'+c.count+'x</span></div>';
@@ -4066,16 +4172,30 @@ var doc = new window.jspdf.jsPDF({ orientation:'portrait', unit:'pt', format:'a4
 
   function openReports(){
     var year = String(new Date().getFullYear());
-    openSheet(renderReport(year));
-    wireReportSheet(year);
+    openSheet(renderReport(year, 'escalado', 'Todos'));
+    wireReportSheet(year, 'escalado', 'Todos');
   }
-  function wireReportSheet(year){
+  function wireReportSheet(year, sortKey, roleFilter){
     document.getElementById('f-close').onclick = closeSheet;
     document.querySelectorAll('#year-chips .chip').forEach(function(c){
       c.addEventListener('click', function(){
         var y = c.getAttribute('data-year');
-        sheet.innerHTML = renderReport(y);
-        wireReportSheet(y);
+        sheet.innerHTML = renderReport(y, sortKey, roleFilter);
+        wireReportSheet(y, sortKey, roleFilter);
+      });
+    });
+    document.querySelectorAll('#report-sort-chips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var sk = c.getAttribute('data-sort');
+        sheet.innerHTML = renderReport(year, sk, roleFilter);
+        wireReportSheet(year, sk, roleFilter);
+      });
+    });
+    document.querySelectorAll('#report-role-chips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var rf = c.getAttribute('data-role');
+        sheet.innerHTML = renderReport(year, sortKey, rf);
+        wireReportSheet(year, sortKey, rf);
       });
     });
   }

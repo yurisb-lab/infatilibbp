@@ -683,13 +683,20 @@ var firebaseConfig = {
     return { icon:'', text:'há '+stats.daysSince+'d · '+stats.thisMonth+'x este mês' };
   }
 
-  function isVolunteerCompatible(v, classId, tipo, role){
+  function isVolunteerUnavailableOn(v, dateIso){
+    if(!dateIso || !v.unavailablePeriods || !v.unavailablePeriods.length) return false;
+    return v.unavailablePeriods.some(function(p){
+      return p.start && p.end && dateIso>=p.start && dateIso<=p.end;
+    });
+  }
+  function isVolunteerCompatible(v, classId, tipo, role, dateIso){
     if(role && v.role && v.role!==role) return false;
     if(classId){
       if(v.classIds && v.classIds.length && v.classIds.indexOf(classId)===-1) return false;
       if(v.classIdsExcluded && v.classIdsExcluded.indexOf(classId)>=0) return false;
     }
     if(tipo && v.availability && v.availability.length && v.availability.indexOf(tipo)===-1) return false;
+    if(dateIso && isVolunteerUnavailableOn(v, dateIso)) return false;
     return true;
   }
 
@@ -907,10 +914,20 @@ var firebaseConfig = {
 
   // ---------- VOLUNTÁRIOS ----------
   function openVolunteerForm(id){
-    var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:'',role:'',ageRanges:[],classIds:[],classIdsExcluded:[],availability:[],availabilityCustom:''};
+    var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:'',role:'',ageRanges:[],classIds:[],classIdsExcluded:[],availability:[],availabilityCustom:'',unavailablePeriods:[]};
     var selectedRole = v.role || '';
     var selectedClasses = (v.classIds||[]).slice();
     var selectedClassesExcluded = (v.classIdsExcluded||[]).slice();
+    var unavailPeriods = (v.unavailablePeriods||[]).slice();
+    function unavailListHtml(periods){
+      if(!periods.length) return '<p class="muted">Nenhum período cadastrado.</p>';
+      return periods.map(function(p,i){
+        return '<div class="row" style="padding:6px 10px;background:#fff;border:1px solid var(--border);border-radius:10px;margin-top:6px">'+
+          '<span style="font-size:13.5px">'+fmtDateShort(p.start)+' a '+fmtDateShort(p.end)+'</span>'+
+          '<button type="button" class="btn small danger-ghost" data-unavail-del="'+i+'">Remover</button>'+
+        '</div>';
+      }).join('');
+    }
 
     var statsBoxHtml = '';
     if(id){
@@ -971,6 +988,14 @@ var firebaseConfig = {
           }).join('')+'</div>'
         : '')+
       '<p class="muted" style="margin-top:4px">Usado pelo gerador automático de escalas para nunca sugerir este(a) voluntário(a) nestas turmas.</p>'+
+      '<label>Períodos em que NÃO pode servir (opcional)</label>'+
+      '<div id="unavail-list">'+unavailListHtml(unavailPeriods)+'</div>'+
+      '<div class="field-row" style="margin-top:8px">'+
+        '<div><label>De</label><input type="date" id="f-unavail-start"></div>'+
+        '<div><label>Até</label><input type="date" id="f-unavail-end"></div>'+
+      '</div>'+
+      '<button type="button" class="btn small" id="f-unavail-add" style="margin-top:8px">+ Adicionar período</button>'+
+      '<p class="muted" style="margin-top:4px">Ex: férias, viagem. O gerador automático e o botão "Sugerir" não vão indicar este(a) voluntário(a) nestas datas.</p>'+
       '<label>Observação (opcional)</label><input id="f-note" value="'+escapeAttr(v.note||'')+'" placeholder="Ex: prefere berçário">'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
@@ -1011,6 +1036,29 @@ var firebaseConfig = {
         });
       });
     }
+    function wireUnavailList(){
+      var box = document.getElementById('unavail-list');
+      box.querySelectorAll('[data-unavail-del]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var idx = parseInt(btn.getAttribute('data-unavail-del'),10);
+          unavailPeriods.splice(idx,1);
+          box.innerHTML = unavailListHtml(unavailPeriods);
+          wireUnavailList();
+        });
+      });
+    }
+    wireUnavailList();
+    document.getElementById('f-unavail-add').addEventListener('click', function(){
+      var s = document.getElementById('f-unavail-start').value;
+      var e = document.getElementById('f-unavail-end').value;
+      if(!s || !e || s>e){ showToast('Selecione um período válido'); return; }
+      unavailPeriods.push({start:s, end:e});
+      document.getElementById('unavail-list').innerHTML = unavailListHtml(unavailPeriods);
+      wireUnavailList();
+      document.getElementById('f-unavail-start').value='';
+      document.getElementById('f-unavail-end').value='';
+      showToast('Período adicionado');
+    });
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
@@ -1029,6 +1077,7 @@ var firebaseConfig = {
         classIdsExcluded: selectedClassesExcluded,
         availability: (v.availability||[]),
         availabilityCustom: v.availabilityCustom||'',
+        unavailablePeriods: unavailPeriods,
         note: document.getElementById('f-note').value.trim()
       };
       if(id){
@@ -1286,7 +1335,7 @@ var firebaseConfig = {
   function volunteerChipPicker(selectedIds, classId, tipo, role, showAll, dateIso){
   if(!DATA.volunteers.length) return '<p class="muted">Cadastre voluntários na aba Equipe primeiro.</p>';
   dateIso = dateIso || todayISO();
-  var compatible = DATA.volunteers.filter(function(v){ return isVolunteerCompatible(v, classId, tipo, role); });
+  var compatible = DATA.volunteers.filter(function(v){ return isVolunteerCompatible(v, classId, tipo, role, dateIso); });
   var rest = DATA.volunteers.filter(function(v){ return compatible.indexOf(v)===-1; });
   var hasFilter = !!(classId || tipo || role);
 
@@ -1453,7 +1502,7 @@ var firebaseConfig = {
       autoBtn.addEventListener('click', function(){
         var dIso = currentDateSelected();
         var pool = DATA.volunteers.filter(function(v){
-          return isVolunteerCompatible(v, classIdSelected, tipoSelected, roleSelected) && selected.indexOf(v.id)===-1;
+          return isVolunteerCompatible(v, classIdSelected, tipoSelected, roleSelected, dIso) && selected.indexOf(v.id)===-1;
         });
         pool.sort(function(a,b){ return priorityScore(b, dIso) - priorityScore(a, dIso); });
         var pick = pool.find(function(v){ return !checkRestWarning(v.id, roleSelected, dIso); }) || pool[0];
@@ -1733,7 +1782,7 @@ var firebaseConfig = {
     classRotationCount = classRotationCount || {};
     pairHistory = pairHistory || {};
     var pool = DATA.volunteers.filter(function(v){
-      return isVolunteerCompatible(v, cls.id, occurrence.tipo, null) && usedTodayIds.indexOf(v.id)===-1;
+      return isVolunteerCompatible(v, cls.id, occurrence.tipo, null, occurrence.date) && usedTodayIds.indexOf(v.id)===-1;
     });
 
     function scoreFor(v){
@@ -2030,6 +2079,7 @@ var firebaseConfig = {
               (s.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
             }
           });
+          (item.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
           var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, {}, {});
           if(!assign.professor){ showToast('Nenhum voluntário compatível disponível'); return; }
           var vids = [assign.professor.id];
@@ -2086,6 +2136,7 @@ var firebaseConfig = {
         (x.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
       }
     });
+    (s.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
     var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, {}, {});
     if(!assign.professor){ showToast('Nenhum voluntário compatível disponível para sugerir'); return; }
     var vids = [assign.professor.id];
@@ -2884,16 +2935,20 @@ var firebaseConfig = {
     var lesson = s.lessonId ? lessonById(s.lessonId) : DATA.lessons.find(function(l){return l.date===s.date;});
     var names = volunteerNames(s.volunteerIds);
     var lines = [];
-    lines.push('📌 Ministério Infantil — ' + fmtDate(s.date));
-    lines.push('Turma: ' + s.className + (s.time?' · '+s.time:''));
-    if(names.length) lines.push('Escalados: ' + names.join(', '));
+    lines.push('📌 *Ministério Infantil*');
+    lines.push('🗓️ *' + fmtDate(s.date) + '*' + (s.time?' às *'+s.time+'*':''));
+    lines.push('');
+    lines.push('👶 *Turma:* ' + s.className);
+    lines.push('🙋 *Escalados:* ' + (names.length ? names.join(', ') : '_a definir_'));
     if(lesson){
       lines.push('');
-      lines.push('Aula: ' + lesson.title);
-      if(lesson.verse) lines.push('Versículo: ' + lesson.verse);
-      if(lesson.materials) lines.push('Materiais: ' + lesson.materials);
+      lines.push('📖 *Aula:* ' + lesson.title);
+      if(lesson.verse) lines.push('✝️ _Versículo:_ ' + lesson.verse);
+      if(lesson.materials) lines.push('🧰 *Materiais:* ' + lesson.materials);
     }
-    if(s.notes) { lines.push(''); lines.push(s.notes); }
+    if(s.notes) { lines.push(''); lines.push('_' + s.notes + '_'); }
+    lines.push('');
+    lines.push('Contamos com você! 🙏');
     return lines.join('\n');
   }
 
@@ -2907,7 +2962,7 @@ var firebaseConfig = {
       if(nb.items.length){
         return nb.items.map(buildMessageFromSchedule).join('\n\n---\n\n');
       }
-      return '📌 Ministério Infantil\n\nLembrete: não esqueça de conferir a escala do próximo domingo!';
+      return '📌 *Ministério Infantil*\n\nLembrete: não esqueça de conferir a escala do próximo domingo!';
     }
     if(key==='agradecimento'){
       return '💛 Olá! Passando aqui para agradecer de coração sua dedicação e carinho com as crianças no Ministério Infantil. Seu serviço faz toda a diferença. Deus continue abençoando sua vida! 🙏';
@@ -2939,8 +2994,10 @@ var firebaseConfig = {
       recipientType: (existing?existing.recipientType:opts.recipientType) || 'proxima_escala',
       classId: (existing?existing.classId:opts.classId) || '',
       scheduleId: (existing?existing.scheduleId:opts.scheduleId) || '',
+      lockTemplate: !!opts.lockTemplate,
       extra: { data:'', horario:'', local:'', nome:'' }
     };
+    if(state.lockTemplate) state.templateKey = 'escala';
     if(state.templateKey===undefined) state.templateKey = opts.message ? '' : 'escala';
     if(!state.message && state.templateKey){
       state.message = buildTemplateMessage(state.templateKey, state);
@@ -3023,11 +3080,13 @@ var firebaseConfig = {
     }
 
     function html(){
-      return '<h2>'+(id?'Editar mensagem':'Nova mensagem')+'</h2>'+
-        '<label>Modelo</label>'+
-        '<div class="chip-select" id="tpl-chips">'+MESSAGE_TEMPLATES.map(function(t){
-          return '<div class="chip'+(state.templateKey===t.key?' on':'')+'" data-tpl="'+t.key+'">'+t.icon+' '+t.label+'</div>';
-        }).join('')+'</div>'+
+      return '<h2>'+(id?'Editar mensagem':(state.lockTemplate?'📅 Lembrete de escala':'Nova mensagem'))+'</h2>'+
+        (state.lockTemplate
+          ? ''
+          : '<label>Modelo</label>'+
+            '<div class="chip-select" id="tpl-chips">'+MESSAGE_TEMPLATES.map(function(t){
+              return '<div class="chip'+(state.templateKey===t.key?' on':'')+'" data-tpl="'+t.key+'">'+t.icon+' '+t.label+'</div>';
+            }).join('')+'</div>')+
         '<div id="extra-fields">'+extraFieldsHtml()+'</div>'+
         '<button type="button" class="btn small" id="f-gen" style="margin-top:10px">↻ Gerar texto do modelo</button>'+
         '<label>Título (para sua organização)</label><input id="f-title" value="'+escapeAttr(state.title)+'" placeholder="Ex: Lembrete de domingo">'+
@@ -3057,13 +3116,16 @@ var firebaseConfig = {
     }
 
     function wire(){
-      document.getElementById('tpl-chips').querySelectorAll('.chip').forEach(function(c){
-        c.addEventListener('click', function(){
-          captureFormValues();
-          state.templateKey = c.getAttribute('data-tpl');
-          rerender();
+      var tplChips = document.getElementById('tpl-chips');
+      if(tplChips){
+        tplChips.querySelectorAll('.chip').forEach(function(c){
+          c.addEventListener('click', function(){
+            captureFormValues();
+            state.templateKey = c.getAttribute('data-tpl');
+            rerender();
+          });
         });
-      });
+      }
       var genBtn = document.getElementById('f-gen');
       if(genBtn){
         genBtn.onclick = function(){
@@ -3194,6 +3256,7 @@ var firebaseConfig = {
     setTimeout(function(){
       openMessageForm({
         templateKey:'escala',
+        lockTemplate:true,
         recipientType:'escala',
         scheduleId: id,
         message: buildMessageFromSchedule(s),
@@ -3263,6 +3326,7 @@ var firebaseConfig = {
     var message = nb.items.map(buildMessageFromSchedule).join('\n\n---\n\n');
     openMessageForm({
       templateKey: 'escala',
+      lockTemplate: true,
       recipientType: 'proxima_escala',
       message: message,
       title: 'Lembrete — Próximo domingo ' + fmtDateShort(nb.date),

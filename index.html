@@ -2061,15 +2061,8 @@ var firebaseConfig = {
       result.priority = 1;
       if(!withoutWarnAux.length) result.warnings.push(result.auxiliar.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
     } else {
-      var prof2Pick = pickRole('Professor', [result.professor.id]);
-      if(prof2Pick){
-        result.auxiliar = prof2Pick.volunteer;
-        result.priority = 2;
-        if(prof2Pick.hadWarning) result.warnings.push(prof2Pick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
-      } else {
-        result.priority = 3;
-        result.warnings.push('Turma '+cls.name+' ficará apenas com professor(a) em '+fmtDateShort(occurrence.date)+' — nenhum(a) auxiliar ou 2º professor(a) disponível.');
-      }
+      result.priority = 3;
+      result.warnings.push('Turma '+cls.name+' ficará apenas com professor(a) em '+fmtDateShort(occurrence.date)+' — nenhum(a) auxiliar disponível.');
     }
     return result;
   }

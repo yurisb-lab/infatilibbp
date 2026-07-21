@@ -505,7 +505,8 @@ var firebaseConfig = {
     Pregador:  { minGap: 0, maxConsecutive: 0 }
   };
   var DEFAULT_CULTOS = [
-    { id:'culto-dom', weekday:0, time:'09:00', label:'Domingo' }
+    { id:'culto-dom', weekday:0, time:'09:00', label:'Domingo' },
+    { id:'culto-sab', weekday:6, time:'19:00', label:'Sábado' }
   ];
   function defaultSettings(){
     return { reminderDay: 5, restRules: JSON.parse(JSON.stringify(DEFAULT_REST_RULES)), cultos: JSON.parse(JSON.stringify(DEFAULT_CULTOS)) };
@@ -522,9 +523,6 @@ var firebaseConfig = {
       if(!DATA.settings.restRules[r]) DATA.settings.restRules[r] = { minGap:0, maxConsecutive:0 };
     });
     if(!DATA.settings.cultos || !DATA.settings.cultos.length) DATA.settings.cultos = JSON.parse(JSON.stringify(DEFAULT_CULTOS));
-    // remove cultos de sábado que possam já ter sido salvos anteriormente
-    DATA.settings.cultos = DATA.settings.cultos.filter(function(c){ return c.weekday!==6; });
-    if(!DATA.settings.cultos.length) DATA.settings.cultos = JSON.parse(JSON.stringify(DEFAULT_CULTOS));
   }
 
   var CLASS_COLORS = {
@@ -1693,7 +1691,7 @@ var firebaseConfig = {
 
   function generateOccurrences(startIso, endIso){
     ensureSettings();
-    var cultos = (DATA.settings.cultos || []).filter(function(c){ return c.weekday===0; }); // gerador automático: apenas domingo
+    var cultos = DATA.settings.cultos || [];
     var out = [];
     if(!cultos.length || !startIso || !endIso || startIso>endIso) return out;
     var cursor = parseISO(startIso);

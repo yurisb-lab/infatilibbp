@@ -336,6 +336,21 @@
   .month-group{
     margin-bottom:12px;
   }
+  .month-divider{
+    display:flex; align-items:center; gap:10px;
+    margin:18px 4px 12px;
+    color:var(--ink-soft);
+    font-size:12px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+  }
+  .month-divider::before, .month-divider::after{
+    content:"";
+    flex:1;
+    height:1px;
+    background:var(--border);
+  }
   .month-head{
     display:flex; align-items:center; justify-content:space-between;
     padding:12px 14px;
@@ -1737,12 +1752,22 @@ var firebaseConfig = {
     });
     monthOrder.sort().reverse(); // mais recente primeiro
 
+    // meses futuros/atual (incluindo os recém-gerados pelo montador automático) começam expandidos
+    monthOrder.forEach(function(mk){
+      if(mk>=currentMonthKey && !(mk in expandedMonths)) expandedMonths[mk] = true;
+    });
+
     var html = '';
+    var pastDividerShown = false;
     monthOrder.forEach(function(mk){
       var items = monthGroups[mk];
       var parts = mk.split('-');
       var label = monthLabel(parseInt(parts[1],10)-1) + ' de ' + parts[0];
       var isExpanded = !!expandedMonths[mk];
+      if(mk<currentMonthKey && !pastDividerShown){
+        pastDividerShown = true;
+        html += '<div class="month-divider">Meses anteriores</div>';
+      }
       html += '<div class="month-group">';
       html += '<div class="month-head" onclick="window.__toggleMonthExpand(\''+mk+'\')">'+
         '<span class="month-label">'+label+'</span>'+

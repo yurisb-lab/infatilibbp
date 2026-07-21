@@ -575,6 +575,31 @@ var firebaseConfig = {
     if(!a||!b) return null;
     return Math.round((a-b)/86400000);
   }
+  // ---------- TURMAS QUINZENAIS ----------
+  // Descobre a data da última escala já registrada para esta turma (independente do rascunho atual)
+  function computeClassAnchor(cls){
+    var scheds = DATA.schedule
+      .filter(function(s){ return s.classId===cls.id; })
+      .map(function(s){ return s.date; })
+      .filter(Boolean)
+      .sort();
+    return scheds.length ? scheds[scheds.length-1] : null;
+  }
+  // Decide se uma turma quinzenal deve ser escalada numa determinada data de culto,
+  // com base na última escala registrada (âncora). Sem âncora, a primeira ocorrência
+  // encontrada dentro do período gerado vira a nova referência.
+  function shouldIncludeQuinzenal(cls, occDateIso, classAnchors){
+    var anchor = classAnchors[cls.id];
+    if(anchor===undefined || anchor===null){
+      classAnchors[cls.id] = occDateIso;
+      return true;
+    }
+    if(occDateIso===anchor) return true;
+    var diff = diffDays(occDateIso, anchor);
+    if(diff===null) return true;
+    var okPhase = (((diff % 14) + 14) % 14) === 0;
+    return okPhase;
+  }
   function volunteerSundayDates(volunteerId, scheduleArr){
     var src = scheduleArr || DATA.schedule;
     return src
@@ -1999,6 +2024,20 @@ var firebaseConfig = {
     }
 
     var result = { classId: cls.id, className: cls.name, professor:null, auxiliar:null, priority:null, warnings:[] };
+
+    // Turmas configuradas como "1 voluntário só" (ex: Juniores = apenas 1 Pregador)
+    if(cls.soloRole){
+      var soloPick = pickRole(cls.soloRole, []);
+      if(!soloPick){
+        result.warnings.push('Sem '+cls.soloRole+' disponível/compatível para '+cls.name+' em '+fmtDateShort(occurrence.date));
+        return result;
+      }
+      result.professor = soloPick.volunteer; // reaproveita o campo "professor" para guardar o único escalado
+      result.priority = 1;
+      if(soloPick.hadWarning) result.warnings.push(soloPick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+      return result;
+    }
+
     var profPick = pickRole('Professor', []);
     if(!profPick){
       result.warnings.push('Sem professor(a) disponível/compatível para '+cls.name+' em '+fmtDateShort(occurrence.date));
@@ -2042,6 +2081,12 @@ var firebaseConfig = {
     var warnings = [];
     var classRotationCount = {};
     var pairHistory = {};
+    var classAnchors = {};
+    classesToUse.forEach(function(cls){
+      if((cls.cadence||'semanal')==='quinzenal'){
+        classAnchors[cls.id] = computeClassAnchor(cls);
+      }
+    });
 
     occurrences.forEach(function(occ){
       var usedTodayIds = [];
@@ -2051,6 +2096,9 @@ var firebaseConfig = {
         }
       });
       classesToUse.forEach(function(cls){
+        if((cls.cadence||'semanal')==='quinzenal' && !shouldIncludeQuinzenal(cls, occ.date, classAnchors)){
+          return; // não é a semana desta turma quinzenal
+        }
         var combinedSchedule = DATA.schedule.concat(draft);
         var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, classRotationCount, pairHistory);
         if(assign.warnings.length) warnings = warnings.concat(assign.warnings);
@@ -2733,10 +2781,13 @@ var firebaseConfig = {
 
   // ---------- TURMAS ----------
   function openClassForm(id){
-    var c = id ? DATA.classes.find(function(x){return x.id===id;}) : {name:'', ageRange:'', revista:'', professor:'', auxiliar:'', color: CLASS_COLOR_KEYS[DATA.classes.length % CLASS_COLOR_KEYS.length]};
+    var c = id ? DATA.classes.find(function(x){return x.id===id;}) : {name:'', ageRange:'', revista:'', professor:'', auxiliar:'', color: CLASS_COLOR_KEYS[DATA.classes.length % CLASS_COLOR_KEYS.length], cadence:'semanal', soloRole:''};
     var selectedColor = c.color;
     var selectedProfessor = c.professor || '';
     var selectedAuxiliar = c.auxiliar || '';
+    var selectedCadence = c.cadence || 'semanal';
+    var selectedMode = c.soloRole ? 'solo' : 'dupla';
+    var selectedSoloRole = c.soloRole || 'Pregador';
     openSheet(
       '<h2>'+(id?'Editar turma':'Nova turma')+'</h2>'+
       '<label>Nome da turma</label><input id="f-name" value="'+escapeAttr(c.name)+'" placeholder="Ex: Juniores">'+
@@ -2745,6 +2796,24 @@ var firebaseConfig = {
       '<label>Professor(a) responsável (opcional)</label>'+teacherChipPicker(selectedProfessor, '-prof')+
       '<label>Auxiliar (opcional)</label>'+teacherChipPicker(selectedAuxiliar, '-aux')+
       '<p class="muted" style="margin-top:4px">Estes são os responsáveis padrão da turma — fique à vontade para deixar em branco ou trocar quando quiser.</p>'+
+      '<label>Cadência da turma</label>'+
+      '<div class="chip-select" id="cadence-chips">'+
+        '<div class="chip'+(selectedCadence==='semanal'?' on':'')+'" data-cadence="semanal">Semanal</div>'+
+        '<div class="chip'+(selectedCadence==='quinzenal'?' on':'')+'" data-cadence="quinzenal">Quinzenal</div>'+
+      '</div>'+
+      '<p class="muted" style="margin-top:4px">Quinzenal: o gerador automático observa a última escala registrada desta turma e mantém o intervalo de 15 em 15 dias.</p>'+
+      '<label>Modelo de escala (usado pelo gerador automático)</label>'+
+      '<div class="chip-select" id="mode-chips">'+
+        '<div class="chip'+(selectedMode==='dupla'?' on':'')+'" data-mode="dupla">Professor + Auxiliar</div>'+
+        '<div class="chip'+(selectedMode==='solo'?' on':'')+'" data-mode="solo">Apenas 1 voluntário</div>'+
+      '</div>'+
+      '<div id="solo-role-box" style="margin-top:8px;'+(selectedMode==='solo'?'':'display:none')+'">'+
+        '<label style="margin:0 0 4px">Função do voluntário único</label>'+
+        '<div class="chip-select" id="solo-role-chips">'+FUNCOES.map(function(f){
+          return '<div class="chip'+(selectedSoloRole===f?' on':'')+'" data-solorole="'+f+'">'+f+'</div>';
+        }).join('')+'</div>'+
+      '</div>'+
+      '<p class="muted" style="margin-top:4px">Ex: Juniores = apenas 1 Pregador (sem auxiliar).</p>'+
       '<label>Cor</label>'+
       '<div class="color-swatch-row" id="color-swatches">'+CLASS_COLOR_KEYS.map(function(k){
         return '<div class="color-swatch'+(k===selectedColor?' on':'')+'" data-color="'+k+'" style="background:'+CLASS_COLORS[k].solid+'"></div>';
@@ -2764,6 +2833,28 @@ var firebaseConfig = {
     });
     wireTeacherPicker('-prof', function(name){ selectedProfessor = name; });
     wireTeacherPicker('-aux', function(name){ selectedAuxiliar = name; });
+    document.getElementById('cadence-chips').querySelectorAll('.chip').forEach(function(el){
+      el.addEventListener('click', function(){
+        selectedCadence = el.getAttribute('data-cadence');
+        document.getElementById('cadence-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        el.classList.add('on');
+      });
+    });
+    document.getElementById('mode-chips').querySelectorAll('.chip').forEach(function(el){
+      el.addEventListener('click', function(){
+        selectedMode = el.getAttribute('data-mode');
+        document.getElementById('mode-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        el.classList.add('on');
+        document.getElementById('solo-role-box').style.display = (selectedMode==='solo') ? '' : 'none';
+      });
+    });
+    document.getElementById('solo-role-chips').querySelectorAll('.chip').forEach(function(el){
+      el.addEventListener('click', function(){
+        selectedSoloRole = el.getAttribute('data-solorole');
+        document.getElementById('solo-role-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+        el.classList.add('on');
+      });
+    });
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
@@ -2779,7 +2870,9 @@ var firebaseConfig = {
         revista: document.getElementById('f-revista').value.trim(),
         professor: profValue,
         auxiliar: auxValue,
-        color: selectedColor
+        color: selectedColor,
+        cadence: selectedCadence,
+        soloRole: (selectedMode==='solo') ? (selectedSoloRole||'Pregador') : ''
       };
       if(id){
         var idx = DATA.classes.findIndex(function(x){return x.id===id;});
@@ -3028,6 +3121,10 @@ var firebaseConfig = {
             (c.auxiliar?'<b>Aux:</b> '+escapeHtml(c.auxiliar):'')+
           '</p>'
         : '';
+      var configBadges = '';
+      if((c.cadence||'semanal')==='quinzenal') configBadges += '<span class="tag" style="margin-right:4px">Quinzenal</span>';
+      if(c.soloRole) configBadges += '<span class="tag">Apenas 1 '+escapeHtml(c.soloRole)+'</span>';
+      if(configBadges) staffLine += '<p class="class-revista" style="margin-top:4px">'+configBadges+'</p>';
       return '<div class="class-card">'+
         '<div class="class-head" style="cursor:pointer" onclick="window.__toggleClassExpand(\''+c.id+'\')">'+
           '<div>'+

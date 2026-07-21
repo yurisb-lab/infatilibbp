@@ -902,25 +902,37 @@ var firebaseConfig = {
   // Migração única: se ainda não existem os documentos separados por chave, mas existe o
   // documento antigo "dados" (formato monolítico), divide o conteúdo dele nos novos documentos.
   async function migrateLegacyDocIfNeeded(){
-    try{
-      for(var i=0;i<DATA_KEYS.length;i++){
-        var d = await db.collection('ministerio').doc(DATA_KEYS[i]).get();
-        if(d.exists) return; // já migrado (ao menos parcialmente); não mexe em nada
-      }
-      var legacy = await db.collection('ministerio').doc('dados').get();
-      if(!legacy.exists) return;
-      var parsed = JSON.parse(legacy.data().json);
-      var nowIso = new Date().toISOString();
-      var batch = db.batch();
-      DATA_KEYS.forEach(function(key){
-        var value = (parsed && parsed[key]!==undefined) ? parsed[key] : (key==='settings' ? defaultSettings() : []);
-        batch.set(db.collection('ministerio').doc(key), { data: value, atualizadoEm: nowIso });
-      });
-      await batch.commit();
-    }catch(e){
-      console.error('Erro ao migrar dados antigos para o novo formato', e);
+  try{
+    var jaChecado = false;
+    try{ jaChecado = localStorage.getItem('migracaoLegadoFeita')==='1'; }catch(e){}
+    if(jaChecado) return; // já sabemos que não precisa migrar; evita 7 leituras a mais toda vez
+
+    var snaps = await Promise.all(DATA_KEYS.map(function(key){
+      return db.collection('ministerio').doc(key).get();
+    }));
+    var algumExiste = snaps.some(function(d){ return d.exists; });
+    if(algumExiste){
+      try{ localStorage.setItem('migracaoLegadoFeita','1'); }catch(e){}
+      return;
     }
+    var legacy = await db.collection('ministerio').doc('dados').get();
+    if(!legacy.exists){
+      try{ localStorage.setItem('migracaoLegadoFeita','1'); }catch(e){}
+      return;
+    }
+    var parsed = JSON.parse(legacy.data().json);
+    var nowIso = new Date().toISOString();
+    var batch = db.batch();
+    DATA_KEYS.forEach(function(key){
+      var value = (parsed && parsed[key]!==undefined) ? parsed[key] : (key==='settings' ? defaultSettings() : []);
+      batch.set(db.collection('ministerio').doc(key), { data: value, atualizadoEm: nowIso });
+    });
+    await batch.commit();
+    try{ localStorage.setItem('migracaoLegadoFeita','1'); }catch(e){}
+  }catch(e){
+    console.error('Erro ao migrar dados antigos para o novo formato', e);
   }
+}
 
   async function load(){
     if(!configOk){
@@ -933,12 +945,14 @@ var firebaseConfig = {
     }
     try{
       await migrateLegacyDocIfNeeded();
-      for(var i=0;i<DATA_KEYS.length;i++){
-        var key = DATA_KEYS[i];
-        var docSnap = await db.collection('ministerio').doc(key).get();
+      var snaps = await Promise.all(DATA_KEYS.map(function(key){
+        return db.collection('ministerio').doc(key).get();
+      }));
+      DATA_KEYS.forEach(function(key, i){
+        var docSnap = snaps[i];
         if(docSnap.exists) DATA[key] = docSnap.data().data;
         lastKnownJson[key] = JSON.stringify(DATA[key]);
-      }
+      });
       ensureSettings();
       ensureClassesSeed();
       loaded = true;

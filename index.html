@@ -393,6 +393,16 @@
   }
   .vol-card-name{font-weight:600; font-size:14px; margin:0; line-height:1.25;}
   .vol-card-role{margin-top:4px;}
+  .history-cols{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:10px;
+}
+.history-cols .card{
+  margin-top:0;
+  padding:10px 12px;
+}
 </style>
 </head>
 <body>
@@ -1085,20 +1095,22 @@ var firebaseConfig = {
           '</div>';
         }
 
-        if(futureHist.length){
-          statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
-            '<p class="card-title" style="font-size:14px;margin-bottom:8px">📅 Próximas escalas</p>'+
-            futureHist.map(histItemHtml).join('')+
-          '</div>';
-        }
-        if(pastHist.length){
-          statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
-            '<p class="card-title" style="font-size:14px;margin-bottom:8px">🗓️ Escalas anteriores</p>'+
-            pastHist.map(histItemHtml).join('')+
-          '</div>';
-        }
-      }
-    }
+       if(futureHist.length || pastHist.length){
+  statsBoxHtml += '<div class="history-cols">'+
+    '<div>'+
+      '<p class="card-title" style="font-size:13.5px;margin-bottom:8px">📅 Próximas escalas</p>'+
+      (futureHist.length
+        ? '<div class="card">'+futureHist.map(histItemHtml).join('')+'</div>'
+        : '<p class="muted" style="font-size:12px">Nenhuma</p>')+
+    '</div>'+
+    '<div>'+
+      '<p class="card-title" style="font-size:13.5px;margin-bottom:8px">🗓️ Escalas anteriores</p>'+
+      (pastHist.length
+        ? '<div class="card">'+pastHist.map(histItemHtml).join('')+'</div>'
+        : '<p class="muted" style="font-size:12px">Nenhuma</p>')+
+    '</div>'+
+  '</div>';
+}
     openSheet(
       '<h2>'+(id?'Editar voluntário':'Novo voluntário')+'</h2>'+
       statsBoxHtml+

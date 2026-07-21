@@ -401,6 +401,7 @@
         <span style="margin-left:auto;display:flex;gap:6px">
           <button class="btn small" id="btn-auto-generate">🤖 Montar Escalas</button>
           <button class="btn small" id="btn-export">Exportar</button>
+          <button class="btn small danger-ghost" id="btn-bulk-delete" title="Excluir escalas por período" style="border:1px solid var(--border)">🗑️</button>
         </span>
       </div>
       <div id="escalas-list"></div>
@@ -882,6 +883,7 @@ var firebaseConfig = {
   document.getElementById('btn-new-message').addEventListener('click', function(){ openMessageForm(); });
   document.getElementById('btn-export').addEventListener('click', function(){ openExportForm(); });
   document.getElementById('btn-auto-generate').addEventListener('click', function(){ openGeneratorForm(); });
+  document.getElementById('btn-bulk-delete').addEventListener('click', function(){ openBulkDeleteForm(); });
 
   var childrenSearchTerm = '';
   document.getElementById('criancas-search').addEventListener('input', function(e){
@@ -2327,6 +2329,155 @@ var firebaseConfig = {
     wire();
   }
   window.__openExport = openExportForm;
+
+  // ---------- EXCLUIR ESCALAS POR PERÍODO ----------
+  function computeBulkDeleteRange(state){
+    var today = todayISO();
+    if(state.period==='mes_atual'){
+      var y = parseInt(today.slice(0,4),10), m = parseInt(today.slice(5,7),10)-1;
+      return { start: y+'-'+pad2(m+1)+'-01', end: y+'-'+pad2(m+1)+'-'+pad2(lastDayOfMonth(y,m)), label: monthLabel(m)+' de '+y };
+    }
+    if(state.period==='proximo_mes'){
+      var d = parseISO(today); d.setMonth(d.getMonth()+1);
+      var y2 = d.getFullYear(), m2 = d.getMonth();
+      return { start: y2+'-'+pad2(m2+1)+'-01', end: y2+'-'+pad2(m2+1)+'-'+pad2(lastDayOfMonth(y2,m2)), label: monthLabel(m2)+' de '+y2 };
+    }
+    if(state.period==='15dias') return { start:today, end: addDaysIso(today,15), label:'Próximos 15 dias' };
+    if(state.period==='30dias') return { start:today, end: addDaysIso(today,30), label:'Próximos 30 dias' };
+    if(state.period==='todas_futuras') return { start:today, end:'2999-12-31', label:'Todas as escalas futuras' };
+    if(state.period==='todas_passadas') return { start:'0000-01-01', end: addDaysIso(today,-1), label:'Todas as escalas passadas' };
+    // personalizado
+    var s = state.startDate || today, e = state.endDate || today;
+    return { start:s, end:e, label: fmtDateShort(s)+'/'+s.slice(0,4)+' a '+fmtDateShort(e)+'/'+e.slice(0,4) };
+  }
+
+  function openBulkDeleteForm(){
+    var state = { period:'mes_atual', startDate: todayISO(), endDate: todayISO(), classId:'', confirming:false };
+
+    function periodFieldsHtml(){
+      if(state.period==='personalizado'){
+        return '<div class="field-row" style="margin-top:8px">'+
+          '<div><label>De</label><input type="date" id="f-del-start" value="'+state.startDate+'"></div>'+
+          '<div><label>Até</label><input type="date" id="f-del-end" value="'+state.endDate+'"></div>'+
+        '</div>';
+      }
+      return '';
+    }
+
+    function matchingSchedules(){
+      var range = computeBulkDeleteRange(state);
+      var scheds = DATA.schedule.filter(function(s){ return s.date>=range.start && s.date<=range.end; });
+      if(state.classId){
+        scheds = scheds.filter(function(s){ return s.classId===state.classId; });
+      }
+      scheds.sort(function(a,b){ return a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''); });
+      return { range: range, items: scheds };
+    }
+
+    function previewHtml(items){
+      if(!items.length){
+        return '<div class="card empty">Nenhuma escala encontrada neste período/turma.</div>';
+      }
+      return '<div class="card" style="padding:10px 14px;max-height:260px;overflow-y:auto">'+
+        items.map(function(s,i){
+          var names = volunteerNames(s.volunteerIds);
+          return '<div style="'+(i>0?'margin-top:8px;padding-top:8px;border-top:1px solid var(--border)':'')+'">'+
+            '<div class="row"><span style="font-size:13.5px">'+fmtDate(s.date)+'</span><span class="pill">'+escapeHtml(s.className)+'</span></div>'+
+            (names.length?'<p class="card-sub" style="margin-top:2px">'+escapeHtml(names.join(', '))+'</p>':'')+
+          '</div>';
+        }).join('')+
+      '</div>';
+    }
+
+    function html(){
+      var m = matchingSchedules();
+      return '<h2>🗑️ Excluir escalas por período</h2>'+
+        '<p class="muted" style="margin:-4px 4px 12px">Escolha o período e, se quiser, uma turma específica. Você verá a lista antes de confirmar — nada é apagado até você confirmar.</p>'+
+        '<label>Turma</label>'+
+        '<div class="chip-select" id="del-class-chips">'+
+          '<div class="chip'+(!state.classId?' on':'')+'" data-classid="">Todas as turmas</div>'+
+          DATA.classes.map(function(c){
+            return '<div class="chip'+(state.classId===c.id?' on':'')+'" data-classid="'+c.id+'">'+escapeHtml(c.name)+'</div>';
+          }).join('')+
+        '</div>'+
+        '<label>Período</label>'+
+        '<div class="chip-select" id="del-period-chips">'+
+          '<div class="chip'+(state.period==='mes_atual'?' on':'')+'" data-period="mes_atual">Este mês</div>'+
+          '<div class="chip'+(state.period==='proximo_mes'?' on':'')+'" data-period="proximo_mes">Próximo mês</div>'+
+          '<div class="chip'+(state.period==='15dias'?' on':'')+'" data-period="15dias">Próximos 15 dias</div>'+
+          '<div class="chip'+(state.period==='30dias'?' on':'')+'" data-period="30dias">Próximos 30 dias</div>'+
+          '<div class="chip'+(state.period==='todas_futuras'?' on':'')+'" data-period="todas_futuras">Todas futuras</div>'+
+          '<div class="chip'+(state.period==='todas_passadas'?' on':'')+'" data-period="todas_passadas">Todas passadas</div>'+
+          '<div class="chip'+(state.period==='personalizado'?' on':'')+'" data-period="personalizado">Personalizado</div>'+
+        '</div>'+
+        '<div id="del-period-fields">'+periodFieldsHtml()+'</div>'+
+        '<p class="card-sub" style="margin:10px 4px 4px">Período selecionado: '+m.range.label+'</p>'+
+        '<label>Escalas que serão excluídas ('+m.items.length+')</label>'+
+        '<div id="del-preview">'+previewHtml(m.items)+'</div>'+
+        '<div class="sheet-actions" style="margin-top:18px">'+
+          '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+          '<button class="btn danger-ghost" style="border:1px solid var(--coral);flex:1" id="f-delete-confirm"'+(!m.items.length?' disabled':'')+'>Excluir '+m.items.length+' escala'+(m.items.length===1?'':'s')+'</button>'+
+        '</div>';
+    }
+
+    function refresh(){
+      sheet.innerHTML = html();
+      wire();
+    }
+
+    function wire(){
+      document.getElementById('del-class-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          state.classId = c.getAttribute('data-classid');
+          state.confirming = false;
+          refresh();
+        });
+      });
+      document.getElementById('del-period-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          state.period = c.getAttribute('data-period');
+          state.confirming = false;
+          refresh();
+        });
+      });
+      var se = document.getElementById('f-del-start');
+      if(se) se.addEventListener('change', function(){ state.startDate = se.value; state.confirming=false; refresh(); });
+      var ee = document.getElementById('f-del-end');
+      if(ee) ee.addEventListener('change', function(){ state.endDate = ee.value; state.confirming=false; refresh(); });
+      document.getElementById('f-cancel').onclick = closeSheet;
+      var delBtn = document.getElementById('f-delete-confirm');
+      if(delBtn){
+        delBtn.onclick = function(){
+          var m = matchingSchedules();
+          if(!m.items.length) return;
+          if(!state.confirming){
+            state.confirming = true;
+            delBtn.textContent = '⚠️ Toque novamente para confirmar exclusão definitiva';
+            delBtn.style.background = 'var(--coral)';
+            delBtn.style.color = '#fff';
+            delBtn.style.borderColor = 'var(--coral)';
+            setTimeout(function(){ state.confirming = false; }, 5000);
+            return;
+          }
+          var idsToDelete = {};
+          m.items.forEach(function(s){ idsToDelete[s.id]=true; });
+          DATA.schedule.forEach(function(s){
+            if(idsToDelete[s.id] && s.lessonId){
+              var lesson = lessonById(s.lessonId);
+              if(lesson && !lesson.done) lesson.date = '';
+            }
+          });
+          DATA.schedule = DATA.schedule.filter(function(s){ return !idsToDelete[s.id]; });
+          save(); renderAll(); closeSheet();
+          showToast(m.items.length+' escala(s) excluída(s)');
+        };
+      }
+    }
+
+    openSheet(html());
+    wire();
+  }
+  window.__openBulkDelete = openBulkDeleteForm;
 
   // ---------- TURMAS ----------
   function openClassForm(id){

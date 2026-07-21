@@ -510,6 +510,14 @@ var firebaseConfig = {
   }
   var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [], children: [], settings: defaultSettings() };
   var loaded = false;
+  // Cada uma destas chaves agora vira um DOCUMENTO SEPARADO no Firestore (coleção "ministerio"),
+  // em vez de tudo dentro de um único documento "dados". Isso evita que uma escrita feita a
+  // partir de uma aba/aparelho desatualizado sobrescreva por engano dados que outra pessoa
+  // acabou de salvar em outra parte do app (ex: editar uma criança sobrescrevendo o nome de uma turma).
+  var DATA_KEYS = ['volunteers','classes','schedule','lessons','reminders','children','settings'];
+  // Guarda o último JSON de cada chave que sabemos que está sincronizado com o servidor.
+  // save() só regrava no Firestore as chaves cujo conteúdo local realmente mudou desde então.
+  var lastKnownJson = {};
 
   function ensureSettings(){
     if(!DATA.settings) DATA.settings = defaultSettings();
@@ -804,10 +812,47 @@ var firebaseConfig = {
   async function save(){
     if(!configOk){ showToast('Firebase não configurado ainda'); return; }
     try{
-      await db.collection('ministerio').doc('dados').set({ json: JSON.stringify(DATA), atualizadoEm: new Date().toISOString() });
+      var nowIso = new Date().toISOString();
+      var changedKeys = [];
+      DATA_KEYS.forEach(function(key){
+        var json = JSON.stringify(DATA[key]);
+        if(json !== lastKnownJson[key]) changedKeys.push(key);
+      });
+      if(!changedKeys.length) return; // nada mudou de verdade nesta sessão: não regrava nada
+      var batch = db.batch();
+      changedKeys.forEach(function(key){
+        batch.set(db.collection('ministerio').doc(key), { data: DATA[key], atualizadoEm: nowIso });
+      });
+      await batch.commit();
+      changedKeys.forEach(function(key){
+        lastKnownJson[key] = JSON.stringify(DATA[key]);
+      });
     }catch(e){
       console.error('Erro ao salvar no Firestore', e);
       showToast('Erro ao salvar. Verifique sua conexão.');
+    }
+  }
+
+  // Migração única: se ainda não existem os documentos separados por chave, mas existe o
+  // documento antigo "dados" (formato monolítico), divide o conteúdo dele nos novos documentos.
+  async function migrateLegacyDocIfNeeded(){
+    try{
+      for(var i=0;i<DATA_KEYS.length;i++){
+        var d = await db.collection('ministerio').doc(DATA_KEYS[i]).get();
+        if(d.exists) return; // já migrado (ao menos parcialmente); não mexe em nada
+      }
+      var legacy = await db.collection('ministerio').doc('dados').get();
+      if(!legacy.exists) return;
+      var parsed = JSON.parse(legacy.data().json);
+      var nowIso = new Date().toISOString();
+      var batch = db.batch();
+      DATA_KEYS.forEach(function(key){
+        var value = (parsed && parsed[key]!==undefined) ? parsed[key] : (key==='settings' ? defaultSettings() : []);
+        batch.set(db.collection('ministerio').doc(key), { data: value, atualizadoEm: nowIso });
+      });
+      await batch.commit();
+    }catch(e){
+      console.error('Erro ao migrar dados antigos para o novo formato', e);
     }
   }
 
@@ -821,28 +866,39 @@ var firebaseConfig = {
       return;
     }
     try{
-      var docRef = await db.collection('ministerio').doc('dados').get();
-      if(docRef.exists){
-        var parsed = JSON.parse(docRef.data().json);
-        DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],children:[],settings:defaultSettings()}, parsed);
-        ensureSettings();
+      await migrateLegacyDocIfNeeded();
+      for(var i=0;i<DATA_KEYS.length;i++){
+        var key = DATA_KEYS[i];
+        var docSnap = await db.collection('ministerio').doc(key).get();
+        if(docSnap.exists) DATA[key] = docSnap.data().data;
+        lastKnownJson[key] = JSON.stringify(DATA[key]);
       }
+      ensureSettings();
       ensureClassesSeed();
-      db.collection('ministerio').doc('dados').onSnapshot(function(doc){
-        if(doc.exists && loaded){
-          var fresh = JSON.parse(doc.data().json);
-          DATA = Object.assign({volunteers:[],classes:[],schedule:[],lessons:[],reminders:[],children:[],settings:defaultSettings()}, fresh);
-          ensureSettings();
-          ensureClassesSeed();
+      loaded = true;
+      renderAll();
+      save(); // grava caso ensureClassesSeed()/ensureSettings() tenham criado algo novo (ex: dados de exemplo)
+
+      // A partir daqui, cada chave escuta o próprio documento. Assim, uma mudança feita por
+      // outra pessoa em "turmas" nunca é misturada com uma gravação de "crianças" feita aqui.
+      DATA_KEYS.forEach(function(key){
+        db.collection('ministerio').doc(key).onSnapshot(function(doc){
+          if(!loaded || !doc.exists) return;
+          var incomingJson = JSON.stringify(doc.data().data);
+          if(incomingJson === lastKnownJson[key]) return; // é a confirmação da nossa própria gravação
+          DATA[key] = doc.data().data;
+          lastKnownJson[key] = incomingJson;
+          if(key==='classes' || key==='lessons') ensureClassesSeed();
+          if(key==='settings') ensureSettings();
           renderAll();
-        }
+        });
       });
     }catch(e){
       console.error('Erro ao carregar do Firestore', e);
       showToast('Não foi possível carregar os dados.');
+      loaded = true;
+      renderAll();
     }
-    loaded = true;
-    renderAll();
   }
 
   function showConfigBanner(){

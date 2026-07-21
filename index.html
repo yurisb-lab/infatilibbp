@@ -2546,7 +2546,7 @@ var firebaseConfig = {
     occurrences.sort(function(a,b){ return a.date.localeCompare(b.date); });
     if(!occurrences.length){ showToast('Nenhum domingo com culto/escala neste período'); return null; }
 
-    var doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+var doc = new window.jspdf.jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
     var pageWidth = doc.internal.pageSize.getWidth();
 
     doc.setFont('helvetica','bold');

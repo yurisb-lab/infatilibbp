@@ -2573,16 +2573,12 @@ var firebaseConfig = {
         colClassMap.push(cls); colClassMap.push(cls);
       }
     });
-    head1.push({ content:'AULA', rowSpan:2, styles:{valign:'middle'} });
-    colClassMap.push(null);
-
+    
     var totalEscalas = 0;
     var body = occurrences.map(function(occ){
       var row = [fmtDateShort(occ.date)+(occ.time?'\nàs '+occ.time:'')];
       classesToUse.forEach(function(cls){
         var sched = DATA.schedule.find(function(s){ return s.date===occ.date && s.classId===cls.id; });
-        var lesson = sched && sched.lessonId ? lessonById(sched.lessonId) : null;
-        if(lesson) row._lesson = lesson.title;
         if(cls.soloRole){
           var solo = '—';
           if(sched){ totalEscalas++; var nm = volunteerNames(sched.volunteerIds); solo = nm.length ? nm.join(', ') : '—'; }
@@ -2603,7 +2599,6 @@ var firebaseConfig = {
           row.push(prof); row.push(aux);
         }
       });
-      row.push(row._lesson || '');
       return row;
     });
 
@@ -2633,7 +2628,7 @@ var firebaseConfig = {
 
     var finalY = doc.lastAutoTable.finalY;
     var pageHeight = doc.internal.pageSize.getHeight();
-    if(finalY > pageHeight-70){ doc.addPage('a4','landscape'); finalY = 40; }
+    if(finalY > pageHeight-70){ doc.addPage('a4','portrait'); finalY = 40; }
     doc.setFont('helvetica','normal');
     doc.setFontSize(9);
     doc.setTextColor('#5D7679');

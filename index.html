@@ -330,6 +330,39 @@
     border:2px solid transparent;
   }
   .color-swatch.on{border-color:var(--ink);}
+
+  /* escalas - pilhas por mes / dia */
+  .month-group{
+    margin-bottom:12px;
+  }
+  .month-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px;
+    background:var(--teal-dark);
+    color:#fff;
+    border-radius:14px;
+    cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  .month-label{
+    font-family:'Baloo 2',cursive; font-weight:600; font-size:15.5px;
+    text-transform:capitalize;
+  }
+  .month-head .pill{background:rgba(255,255,255,.22); color:#fff;}
+  .day-group{
+    margin:10px 4px 0;
+    padding-left:2px;
+  }
+  .day-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:6px 4px 8px;
+  }
+  .day-label{
+    font-size:13.5px; font-weight:600; color:var(--ink-soft);
+    text-transform:capitalize;
+  }
+  .pill.status-warn{background:#FCE2D3; color:#A83B27;}
+  .pill.status-sub{background:var(--amber-tint); color:#8A5A0E;}
 </style>
 </head>
 <body>
@@ -394,6 +427,7 @@
       <div class="section-title">Voluntários <span class="muted" id="voluntarios-count"></span>
         <button class="btn small" id="btn-new-volunteer" style="margin-left:auto">+ Voluntário</button>
       </div>
+      <p class="muted" style="margin:-4px 4px 12px;font-size:11.5px;line-height:1.4">A <b>carga</b> mostra o quanto cada voluntário tem servido: 🟢 Baixa (serviu pouco recentemente), 🟡 Média e 🔴 Alta (serviu muitas vezes seguidas ou várias vezes no mês). Use isso para equilibrar as próximas escalas.</p>
       <div id="voluntarios-list"></div>
     </div>
 
@@ -493,18 +527,9 @@ var firebaseConfig = {
   var CLASS_COLOR_KEYS = Object.keys(CLASS_COLORS);
 
   var FUNCOES = ['Professor','Auxiliar','Pregador'];
-  var DISPONIBILIDADE_OPTS = ['Sábado','Domingo','Manhã','Noite'];
   var CHILD_ICONS = { M:'👦', F:'👧' };
   var expandedClasses = {};
-
-  function ageRangeOptions(){
-    var seen = {}; var out = [];
-    DATA.classes.forEach(function(c){
-      var a = (c.ageRange||'').trim();
-      if(a && !seen[a]){ seen[a]=true; out.push(a); }
-    });
-    return out;
-  }
+  var expandedMonths = {};
 
   // ---------- CARGA DE SERVIÇO / ESTATÍSTICAS ----------
   function parseISO(iso){
@@ -596,6 +621,12 @@ var firebaseConfig = {
       byClass: Object.keys(byClass).map(function(n){ return {name:n, count:byClass[n]}; }).sort(function(a,b){return b.count-a.count;})
     };
   }
+  function volunteerServiceHistory(volunteerId){
+    return DATA.schedule
+      .filter(function(s){ return (s.volunteerIds||[]).indexOf(volunteerId)>=0; })
+      .slice()
+      .sort(function(a,b){ return b.date.localeCompare(a.date); });
+  }
   function restRuleFor(role){
     ensureSettings();
     return (role && DATA.settings.restRules[role]) || { minGap:0, maxConsecutive:0 };
@@ -646,8 +677,6 @@ var firebaseConfig = {
     if(role && v.role && v.role!==role) return false;
     if(classId){
       if(v.classIds && v.classIds.length && v.classIds.indexOf(classId)===-1) return false;
-      var cls = DATA.classes.find(function(c){return c.id===classId;});
-      if(cls && cls.ageRange && v.ageRanges && v.ageRanges.length && v.ageRanges.indexOf(cls.ageRange)===-1) return false;
     }
     if(tipo && v.availability && v.availability.length && v.availability.indexOf(tipo)===-1) return false;
     return true;
@@ -867,15 +896,14 @@ var firebaseConfig = {
   function openVolunteerForm(id){
     var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:'',role:'',ageRanges:[],classIds:[],availability:[],availabilityCustom:''};
     var selectedRole = v.role || '';
-    var selectedAges = (v.ageRanges||[]).slice();
     var selectedClasses = (v.classIds||[]).slice();
-    var selectedAvail = (v.availability||[]).slice();
-    var ageOpts = ageRangeOptions();
 
     var statsBoxHtml = '';
     if(id){
       var st = computeVolunteerStats(id);
       var yr = computeVolunteerYearStats(id, String(new Date().getFullYear()));
+      var history = volunteerServiceHistory(id);
+      var absenceCount = history.filter(function(h){return h.teacherAbsent;}).length;
       statsBoxHtml = '<div class="card" style="margin-top:14px;padding:12px 14px">'+
         '<p class="card-title" style="font-size:14px;margin-bottom:8px">📊 Carga de serviço</p>'+
         '<div class="row"><span class="muted">Última escala</span><strong>'+(st.last?fmtDateShort(st.last)+' ('+st.daysSince+'d atrás)':'—')+'</strong></div>'+
@@ -884,8 +912,25 @@ var firebaseConfig = {
         '<div class="row" style="margin-top:6px"><span class="muted">Carga</span><strong>'+st.emoji+' '+st.level+'</strong></div>'+
         '<div class="row" style="margin-top:6px"><span class="muted">Escalado em '+new Date().getFullYear()+'</span><strong>'+yr.total+'x</strong></div>'+
         '<div class="row" style="margin-top:6px"><span class="muted">Maior sequência (ano)</span><strong>'+yr.longestStreak+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Faltas registradas</span><strong>'+absenceCount+'</strong></div>'+
         (yr.byClass.length?'<p class="card-sub" style="margin-top:8px">Turmas: '+yr.byClass.map(function(c){return escapeHtml(c.name)+' ('+c.count+')';}).join(', ')+'</p>':'')+
       '</div>';
+      if(history.length){
+        statsBoxHtml += '<div class="card" style="margin-top:10px;padding:12px 14px">'+
+          '<p class="card-title" style="font-size:14px;margin-bottom:8px">🗓️ Dias em que serviu</p>'+
+          history.map(function(h,i){
+            var badges = '';
+            if(h.teacherAbsent) badges += ' <span class="pill status-warn">❌ Faltou</span>';
+            if(h.teacherSubstituted) badges += ' <span class="pill status-sub">🔄 Substituído'+(h.substituteName?': '+escapeHtml(h.substituteName):'')+'</span>';
+            return '<div style="'+(i>0?'margin-top:8px;padding-top:8px;border-top:1px solid var(--border)':'')+'">'+
+              '<div class="row" style="align-items:flex-start">'+
+                '<span style="font-size:13.5px">'+fmtDate(h.date)+'<br><span class="muted" style="font-size:12px">'+escapeHtml(h.className)+(h.tipo?' · '+escapeHtml(h.tipo):'')+'</span></span>'+
+              '</div>'+
+              (badges?'<div class="tag-row" style="margin-top:4px">'+badges+'</div>':'')+
+            '</div>';
+          }).join('')+
+        '</div>';
+      }
     }
     openSheet(
       '<h2>'+(id?'Editar voluntário':'Novo voluntário')+'</h2>'+
@@ -898,13 +943,6 @@ var firebaseConfig = {
           return '<div class="chip'+(selectedRole===f?' on':'')+'" data-role="'+f+'">'+f+'</div>';
         }).join('')+
       '</div>'+
-      '<label>Faixas etárias que pode atender</label>'+
-      (ageOpts.length
-        ? '<div class="chip-select" id="age-chips">'+ageOpts.map(function(a){
-            return '<div class="chip'+(selectedAges.indexOf(a)>=0?' on':'')+'" data-age="'+escapeAttr(a)+'">'+escapeHtml(a)+'</div>';
-          }).join('')+'</div>'
-        : '<p class="muted">Cadastre turmas com faixa etária para habilitar esta opção.</p>')+
-      '<p class="muted" style="margin-top:4px">Nenhuma faixa marcada = pode atender qualquer idade.</p>'+
       '<label>Turmas em que pode servir</label>'+
       (DATA.classes.length
         ? '<div class="chip-select" id="class-chips">'+DATA.classes.map(function(c){
@@ -912,12 +950,6 @@ var firebaseConfig = {
           }).join('')+'</div>'
         : '<p class="muted">Cadastre turmas na aba Aulas para habilitar esta opção.</p>')+
       '<p class="muted" style="margin-top:4px">Nenhuma turma marcada = pode servir em qualquer turma.</p>'+
-      '<label>Disponibilidade</label>'+
-      '<div class="chip-select" id="avail-chips">'+DISPONIBILIDADE_OPTS.map(function(a){
-        return '<div class="chip'+(selectedAvail.indexOf(a)>=0?' on':'')+'" data-avail="'+a+'">'+a+'</div>';
-      }).join('')+'</div>'+
-      '<input id="f-avail-custom" style="margin-top:8px" value="'+escapeAttr(v.availabilityCustom||'')+'" placeholder="Disponibilidade personalizada (opcional)">'+
-      '<p class="muted" style="margin-top:4px">Nenhuma marcada = disponível em qualquer culto.</p>'+
       '<label>Observação (opcional)</label><input id="f-note" value="'+escapeAttr(v.note||'')+'" placeholder="Ex: prefere berçário">'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
@@ -936,17 +968,6 @@ var firebaseConfig = {
         }
       });
     });
-    var ageChipsEl = document.getElementById('age-chips');
-    if(ageChipsEl){
-      ageChipsEl.querySelectorAll('.chip').forEach(function(c){
-        c.addEventListener('click', function(){
-          var a = c.getAttribute('data-age');
-          var i = selectedAges.indexOf(a);
-          if(i>=0){ selectedAges.splice(i,1); c.classList.remove('on'); }
-          else{ selectedAges.push(a); c.classList.add('on'); }
-        });
-      });
-    }
     var classChipsEl = document.getElementById('class-chips');
     if(classChipsEl){
       classChipsEl.querySelectorAll('.chip').forEach(function(c){
@@ -958,27 +979,23 @@ var firebaseConfig = {
         });
       });
     }
-    document.getElementById('avail-chips').querySelectorAll('.chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        var a = c.getAttribute('data-avail');
-        var i = selectedAvail.indexOf(a);
-        if(i>=0){ selectedAvail.splice(i,1); c.classList.remove('on'); }
-        else{ selectedAvail.push(a); c.classList.add('on'); }
-      });
-    });
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
       if(!name){ showToast('Digite um nome'); return; }
+      var derivedAgeRanges = Array.from(new Set(selectedClasses.map(function(cid){
+        var cls = DATA.classes.find(function(c){return c.id===cid;});
+        return cls ? (cls.ageRange||'').trim() : '';
+      }).filter(Boolean)));
       var obj = {
         id: id || uid(),
         name: name,
         phone: document.getElementById('f-phone').value.trim(),
         role: selectedRole,
-        ageRanges: selectedAges,
+        ageRanges: derivedAgeRanges,
         classIds: selectedClasses,
-        availability: selectedAvail,
-        availabilityCustom: document.getElementById('f-avail-custom').value.trim(),
+        availability: (v.availability||[]),
+        availabilityCustom: v.availabilityCustom||'',
         note: document.getElementById('f-note').value.trim()
       };
       if(id){
@@ -1011,8 +1028,6 @@ var firebaseConfig = {
         var c = DATA.classes.find(function(x){return x.id===cid;});
         return c ? c.name : null;
       }).filter(Boolean);
-      var availList = (v.availability||[]).slice();
-      if(v.availabilityCustom) availList.push(v.availabilityCustom);
       var stats = computeVolunteerStats(v.id);
       var loadInfo = stats.last
         ? stats.emoji+' '+stats.level+' · há '+stats.daysSince+'d · '+stats.thisMonth+'x este mês'+(stats.streak>=2?' · '+stats.streak+' seguidos':'')
@@ -1025,11 +1040,9 @@ var firebaseConfig = {
         (v.phone?'<p class="card-sub" style="margin-top:2px">'+escapeHtml(v.phone)+'</p>':'')+
         (v.note?'<p class="card-sub">'+escapeHtml(v.note)+'</p>':'')+
         '<p class="card-sub" style="margin-top:4px">'+loadInfo+'</p>'+
-        ((v.ageRanges&&v.ageRanges.length)||classNames.length||availList.length
+        (classNames.length
           ? '<div class="tag-row">'+
-              (v.ageRanges||[]).map(function(a){return '<span class="tag">'+escapeHtml(a)+'</span>';}).join('')+
               classNames.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+
-              availList.map(function(a){return '<span class="tag">'+escapeHtml(a)+'</span>';}).join('')+
             '</div>'
           : '')+
         '</div>';
@@ -1289,8 +1302,8 @@ var firebaseConfig = {
   }
 
   // ---------- ESCALAS ----------
-  function openScheduleForm(id){
-    var s = id ? DATA.schedule.find(function(x){return x.id===id;}) : {date: todayISO(), tipo:'Domingo', className:'', classId:'', role:'', volunteerIds:[], lessonId:'', time:'', notes:''};
+  function openScheduleForm(id, prefillDate){
+    var s = id ? DATA.schedule.find(function(x){return x.id===id;}) : {date: prefillDate || todayISO(), tipo:'Domingo', className:'', classId:'', role:'', volunteerIds:[], lessonId:'', time:'', notes:'', teacherSubstituted:false, teacherAbsent:false, substituteName:''};
     var hasClassId = s.classId && DATA.classes.some(function(c){return c.id===s.classId;});
     openSheet(
       '<h2>'+(id?'Editar escala':'Nova escala')+'</h2>'+
@@ -1323,6 +1336,12 @@ var firebaseConfig = {
         '<button type="button" class="btn small" id="f-auto-suggest">🎯 Sugerir</button>'+
       '</div>'+
       '<div id="vol-picker-container">'+volunteerChipPicker(s.volunteerIds||[], hasClassId?s.classId:'', s.tipo==='Sábado'?'Sábado':'Domingo', s.role||'', false, s.date)+'</div>'+
+      '<label>Situação do professor</label>'+
+      '<div class="chip-select" id="status-chips">'+
+        '<div class="chip'+(s.teacherSubstituted?' on':'')+'" data-status="sub">🔄 Foi substituído(a)</div>'+
+        '<div class="chip'+(s.teacherAbsent?' on':'')+'" data-status="absent">❌ Faltou</div>'+
+      '</div>'+
+      '<input id="f-substitute-name" style="margin-top:8px;'+(s.teacherSubstituted?'':'display:none')+'" value="'+escapeAttr(s.substituteName||'')+'" placeholder="Nome de quem substituiu">'+
       '<label>Aula que será dada nesta escala</label>'+
       '<div id="lesson-picker-container">'+lessonChipPicker(hasClassId?s.classId:'', s.lessonId||(hasClassId?(nextLessonForClass(s.classId)||{}).id:null))+'</div>'+
       '<p class="muted" style="margin-top:4px">Vincular a aula sincroniza a data com a turma e alimenta as mensagens automáticas.</p>'+
@@ -1338,6 +1357,8 @@ var firebaseConfig = {
     var roleSelected = s.role || '';
     var selected = (s.volunteerIds||[]).slice();
     var showAllVols = false;
+    var teacherSubstitutedSel = !!s.teacherSubstituted;
+    var teacherAbsentSel = !!s.teacherAbsent;
     var tipoChips = document.getElementById('tipo-chips');
     var lessonSelected = s.lessonId || (hasClassId ? ((nextLessonForClass(s.classId)||{}).id || '') : '');
 
@@ -1452,6 +1473,22 @@ var firebaseConfig = {
       });
     });
 
+    var statusChipsEl = document.getElementById('status-chips');
+    statusChipsEl.querySelectorAll('.chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var st = c.getAttribute('data-status');
+        c.classList.toggle('on');
+        if(st==='sub'){
+          teacherSubstitutedSel = c.classList.contains('on');
+          var subInput = document.getElementById('f-substitute-name');
+          subInput.style.display = teacherSubstitutedSel ? '' : 'none';
+          if(teacherSubstitutedSel) subInput.focus();
+        } else if(st==='absent'){
+          teacherAbsentSel = c.classList.contains('on');
+        }
+      });
+    });
+
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var className = document.getElementById('f-class').value.trim();
@@ -1468,7 +1505,10 @@ var firebaseConfig = {
         role: roleSelected,
         volunteerIds: selected,
         lessonId: lessonSelected,
-        notes: document.getElementById('f-notes').value.trim()
+        notes: document.getElementById('f-notes').value.trim(),
+        teacherSubstituted: teacherSubstitutedSel,
+        teacherAbsent: teacherAbsentSel,
+        substituteName: teacherSubstitutedSel ? document.getElementById('f-substitute-name').value.trim() : ''
       };
       if(id){
         var idx = DATA.schedule.findIndex(function(x){return x.id===id;});
@@ -1510,6 +1550,35 @@ var firebaseConfig = {
     return DATA.classes.find(function(c){ return c.name.trim().toLowerCase()===norm; });
   }
 
+  function scheduleCardHtml(s, classCounter, today){
+    var names = volunteerNames(s.volunteerIds);
+    var isPast = s.date < today;
+    var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
+    var linkedLesson = s.lessonId ? lessonById(s.lessonId) : null;
+    var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
+    var counterKey = matchedClass ? matchedClass.id : ('__'+s.className);
+    classCounter[counterKey] = (classCounter[counterKey]||0) + 1;
+    var num = classCounter[counterKey];
+    var numCircle = '<span class="lesson-num" style="background:'+(pal?pal.solid:'var(--ink-soft)')+'">'+num+'</span>';
+    var titleBadge = pal
+      ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
+      : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
+    var statusBadges = '';
+    if(s.teacherAbsent) statusBadges += '<span class="pill status-warn">❌ Faltou</span>';
+    if(s.teacherSubstituted) statusBadges += '<span class="pill status-sub">🔄 Substituído'+(s.substituteName?': '+escapeHtml(s.substituteName):'')+'</span>';
+    return '<div class="card" onclick="window.__openSched(\''+s.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
+      '<div class="row" style="align-items:center">'+
+        '<div class="row" style="gap:8px;justify-content:flex-start">'+numCircle+titleBadge+'</div>'+
+        '<span style="display:flex;gap:5px;flex:none"><span class="pill '+(s.tipo==='Sábado'?'green':'')+'">'+(s.tipo||'Domingo')+'</span><span class="pill">'+fmtDateShort(s.date)+'</span></span>'+
+      '</div>'+
+      '<p class="card-sub" style="margin-top:6px">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+      (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
+      (statusBadges?'<div class="tag-row">'+statusBadges+'</div>':'')+
+      (linkedLesson?'<p class="card-sub" style="margin-top:6px">📖 '+escapeHtml(linkedLesson.title)+(linkedLesson.done?' ✓':'')+'</p>':'')+
+      (s.notes?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(s.notes)+'</p>':'')+
+      '</div>';
+  }
+
   function renderSchedule(){
     var list = document.getElementById('escalas-list');
     var sorted = DATA.schedule.slice().sort(function(a,b){return a.date.localeCompare(b.date);});
@@ -1519,33 +1588,58 @@ var firebaseConfig = {
       return;
     }
     var today = todayISO();
-    var classCounter = {};
-    list.innerHTML = sorted.map(function(s){
-      var names = volunteerNames(s.volunteerIds);
-      var isPast = s.date < today;
-      var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
-      var linkedLesson = s.lessonId ? lessonById(s.lessonId) : null;
-      var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
-      var counterKey = matchedClass ? matchedClass.id : ('__'+s.className);
-      classCounter[counterKey] = (classCounter[counterKey]||0) + 1;
-      var num = classCounter[counterKey];
-      var numCircle = '<span class="lesson-num" style="background:'+(pal?pal.solid:'var(--ink-soft)')+'">'+num+'</span>';
-      var titleBadge = pal
-        ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
-        : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
-      return '<div class="card" onclick="window.__openSched(\''+s.id+'\')" style="cursor:pointer;'+(isPast?'opacity:.55':'')+'">'+
-        '<div class="row" style="align-items:center">'+
-          '<div class="row" style="gap:8px;justify-content:flex-start">'+numCircle+titleBadge+'</div>'+
-          '<span style="display:flex;gap:5px;flex:none"><span class="pill '+(s.tipo==='Sábado'?'green':'')+'">'+(s.tipo||'Domingo')+'</span><span class="pill">'+fmtDateShort(s.date)+'</span></span>'+
-        '</div>'+
-        '<p class="card-sub" style="margin-top:6px">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
-        (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
-        (linkedLesson?'<p class="card-sub" style="margin-top:6px">📖 '+escapeHtml(linkedLesson.title)+(linkedLesson.done?' ✓':'')+'</p>':'')+
-        (s.notes?'<p class="card-sub" style="margin-top:6px">'+escapeHtml(s.notes)+'</p>':'')+
-        '</div>';
-    }).join('');
+    var currentMonthKey = today.slice(0,7);
+    if(!(currentMonthKey in expandedMonths)) expandedMonths[currentMonthKey] = true;
+
+    var monthGroups = {}; var monthOrder = [];
+    sorted.forEach(function(s){
+      var mk = s.date.slice(0,7);
+      if(!monthGroups[mk]){ monthGroups[mk] = []; monthOrder.push(mk); }
+      monthGroups[mk].push(s);
+    });
+    monthOrder.sort().reverse(); // mais recente primeiro
+
+    var html = '';
+    monthOrder.forEach(function(mk){
+      var items = monthGroups[mk];
+      var parts = mk.split('-');
+      var label = monthLabel(parseInt(parts[1],10)-1) + ' de ' + parts[0];
+      var isExpanded = !!expandedMonths[mk];
+      html += '<div class="month-group">';
+      html += '<div class="month-head" onclick="window.__toggleMonthExpand(\''+mk+'\')">'+
+        '<span class="month-label">'+label+'</span>'+
+        '<span class="row" style="gap:8px"><span class="pill">'+items.length+'</span><span style="font-size:13px">'+(isExpanded?'▲':'▼')+'</span></span>'+
+      '</div>';
+      if(isExpanded){
+        var dayGroups = {}; var dayOrder = [];
+        items.forEach(function(s){
+          if(!dayGroups[s.date]){ dayGroups[s.date] = []; dayOrder.push(s.date); }
+          dayGroups[s.date].push(s);
+        });
+        dayOrder.sort();
+        var classCounter = {};
+        dayOrder.forEach(function(dateIso){
+          html += '<div class="day-group">';
+          html += '<div class="day-head"><span class="day-label">'+fmtDate(dateIso)+'</span>'+
+            '<button class="btn small" onclick="event.stopPropagation();window.__addToDay(\''+dateIso+'\')">+ Turma</button></div>';
+          dayGroups[dateIso].forEach(function(s){
+            html += scheduleCardHtml(s, classCounter, today);
+          });
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+    list.innerHTML = html;
   }
   window.__openSched = openScheduleForm;
+  window.__toggleMonthExpand = function(mk){
+    expandedMonths[mk] = !expandedMonths[mk];
+    renderSchedule();
+  };
+  window.__addToDay = function(dateIso){
+    openScheduleForm(null, dateIso);
+  };
 
   // ---------- EXPORTAR ESCALAS (texto) ----------
   function pad2(n){ return (n<10?'0':'')+n; }
@@ -2589,8 +2683,8 @@ var firebaseConfig = {
 
   // patch schedule sheet to add "gerar lembrete" button when editing existing
   var _openScheduleForm = openScheduleForm;
-  openScheduleForm = function(id){
-    _openScheduleForm(id);
+  openScheduleForm = function(id, prefillDate){
+    _openScheduleForm(id, prefillDate);
     if(id){
       var actions = sheet.querySelector('.sheet-actions');
       if(actions){

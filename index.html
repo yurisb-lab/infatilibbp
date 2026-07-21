@@ -393,9 +393,6 @@
 
       <div class="section-title">Mensagens pendentes</div>
       <div id="pending-reminders-box"></div>
-
-      <div class="section-title">Esta semana</div>
-      <div id="week-summary-box"></div>
     </div>
 
     <!-- ESCALAS -->
@@ -3076,21 +3073,24 @@ var firebaseConfig = {
     if(!nb.items.length){
       nextBox.innerHTML = '<div class="card empty">Nenhuma escala futura cadastrada para domingo.</div>';
     } else {
-      nextBox.innerHTML = nb.items.map(function(s){
+      var headerTime = nb.items[0].time;
+      var headerHtml = '<p class="muted" style="margin:0 4px 10px">'+fmtDate(nb.date)+(headerTime?' às '+escapeHtml(headerTime):'')+'</p>';
+      var cardsHtml = nb.items.map(function(s){
         var names = volunteerNames(s.volunteerIds);
         var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
         var lesson = s.lessonId ? lessonById(s.lessonId) : (matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : null);
+        var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
+        var titleBadge = pal
+          ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
+          : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
         return '<div class="card">'+
-          '<div class="row"><p class="card-title">'+escapeHtml(s.className)+'</p><span class="pill">'+fmtDateShort(s.date)+'</span></div>'+
-          '<p class="card-sub">'+fmtDate(s.date)+(s.time?' às '+escapeHtml(s.time):'')+'</p>'+
+          '<div class="row">'+titleBadge+(s.time&&s.time!==headerTime?'<span class="pill">'+escapeHtml(s.time)+'</span>':'')+'</div>'+
           (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+
           (lesson?'<p class="card-sub" style="margin-top:8px">📖 '+escapeHtml(lesson.title)+'</p>':'')+
-          '<div class="sheet-actions" style="margin-top:12px">'+
-            '<button class="btn small" onclick="window.__openSched(\''+s.id+'\')">Ver escala</button>'+
-            '<button class="btn small primary" onclick="window.__genRem(\''+s.id+'\')">Gerar lembrete</button>'+
-          '</div>'+
         '</div>';
       }).join('');
+      nextBox.innerHTML = headerHtml + cardsHtml +
+        '<button class="btn primary block" style="margin-top:10px" onclick="window.__genRemNextSunday()">Gerar lembrete</button>';
     }
 
     var pendBox = document.getElementById('pending-reminders-box');
@@ -3104,18 +3104,21 @@ var firebaseConfig = {
           '<span class="pill coral">enviar</span></div>';
       }).join('');
     }
-
-    var weekBox = document.getElementById('week-summary-box');
-    var in7 = new Date(); in7.setDate(in7.getDate()+7);
-    var in7iso = in7.toISOString().slice(0,10);
-    var weekSchedules = DATA.schedule.filter(function(s){return s.date>=today && s.date<=in7iso;});
-    var weekLessons = DATA.lessons.filter(function(l){return l.date>=today && l.date<=in7iso;});
-    weekBox.innerHTML = '<div class="card">'+
-      '<div class="row"><span class="muted">Escalas nos próximos 7 dias</span><strong>'+weekSchedules.length+'</strong></div>'+
-      '<div class="row" style="margin-top:8px"><span class="muted">Aulas planejadas</span><strong>'+weekLessons.length+'</strong></div>'+
-      '<div class="row" style="margin-top:8px"><span class="muted">Voluntários cadastrados</span><strong>'+DATA.volunteers.length+'</strong></div>'+
-    '</div>';
   }
+
+  function generateReminderForNextSunday(){
+    var nb = nextSundayEntries();
+    if(!nb.items.length){ showToast('Nenhuma escala futura cadastrada para domingo'); return; }
+    var message = nb.items.map(buildMessageFromSchedule).join('\n\n---\n\n');
+    openMessageForm({
+      templateKey: 'escala',
+      recipientType: 'proxima_escala',
+      message: message,
+      title: 'Lembrete — Próximo domingo ' + fmtDateShort(nb.date),
+      date: nb.date
+    });
+  }
+  window.__genRemNextSunday = generateReminderForNextSunday;
 
   // ---------- helpers ----------
   function escapeHtml(str){

@@ -3297,17 +3297,26 @@ var firebaseConfig = {
         '<label>Título (para sua organização)</label><input id="f-title" value="'+escapeAttr(state.title)+'" placeholder="Ex: Lembrete de domingo">'+
         '<label>Data de referência</label><input type="date" id="f-date" value="'+state.date+'">'+
         '<label>Mensagem</label><textarea id="f-message" rows="7">'+escapeHtml(state.message)+'</textarea>'+
-        '<label>Enviar para</label>'+
-        '<div class="chip-select" id="rec-chips">'+RECIPIENT_TYPES.map(function(r){
-          return '<div class="chip'+(state.recipientType===r.key?' on':'')+'" data-rec="'+r.key+'">'+r.label+'</div>';
-        }).join('')+'</div>'+
-        '<div id="rec-extra" style="margin-top:8px">'+recipientExtraHtml()+'</div>'+
-        '<label>Destinatários encontrados</label>'+
-        '<div id="rec-preview">'+recipientsPreviewHtml()+'</div>'+
-        '<div class="sheet-actions">'+
-          '<button class="btn" id="f-copy">Copiar mensagem</button>'+
-          '<button class="btn primary" id="f-save">Salvar</button>'+
-        '</div>'+
+        (state.lockTemplate ? '' :
+          '<label>Enviar para</label>'+
+          '<div class="chip-select" id="rec-chips">'+RECIPIENT_TYPES.map(function(r){
+            return '<div class="chip'+(state.recipientType===r.key?' on':'')+'" data-rec="'+r.key+'">'+r.label+'</div>';
+          }).join('')+'</div>'+
+          '<div id="rec-extra" style="margin-top:8px">'+recipientExtraHtml()+'</div>'+
+          '<label>Destinatários encontrados</label>'+
+          '<div id="rec-preview">'+recipientsPreviewHtml()+'</div>')+
+        (state.lockTemplate
+          ? '<div class="sheet-actions">'+
+              '<button class="btn primary block" id="f-whatsapp">📱 Enviar pelo WhatsApp</button>'+
+            '</div>'+
+            '<div class="sheet-actions" style="margin-top:8px">'+
+              '<button class="btn" id="f-copy">Copiar mensagem</button>'+
+              '<button class="btn" id="f-save">Salvar</button>'+
+            '</div>'
+          : '<div class="sheet-actions">'+
+              '<button class="btn" id="f-copy">Copiar mensagem</button>'+
+              '<button class="btn primary" id="f-save">Salvar</button>'+
+            '</div>')+
         '<div class="sheet-actions" style="margin-top:8px">'+
           (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
           '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
@@ -3339,13 +3348,16 @@ var firebaseConfig = {
           rerender();
         };
       }
-      document.getElementById('rec-chips').querySelectorAll('.chip').forEach(function(c){
-        c.addEventListener('click', function(){
-          captureFormValues();
-          state.recipientType = c.getAttribute('data-rec');
-          rerender();
+      var recChips = document.getElementById('rec-chips');
+      if(recChips){
+        recChips.querySelectorAll('.chip').forEach(function(c){
+          c.addEventListener('click', function(){
+            captureFormValues();
+            state.recipientType = c.getAttribute('data-rec');
+            rerender();
+          });
         });
-      });
+      }
       var classSel = document.getElementById('f-classid');
       if(classSel){
         classSel.addEventListener('change', function(){
@@ -3368,6 +3380,13 @@ var firebaseConfig = {
           var nomeInput = document.getElementById('f-extra-nome');
           if(nomeInput) nomeInput.value = childSel.value;
         });
+      }
+      var waBtn = document.getElementById('f-whatsapp');
+      if(waBtn){
+        waBtn.onclick = function(){
+          captureFormValues();
+          window.open('https://wa.me/?text='+encodeURIComponent(state.message), '_blank');
+        };
       }
       document.getElementById('f-cancel').onclick = closeSheet;
       document.getElementById('f-copy').onclick = function(){

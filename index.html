@@ -1750,7 +1750,7 @@ var firebaseConfig = {
       if(!monthGroups[mk]){ monthGroups[mk] = []; monthOrder.push(mk); }
       monthGroups[mk].push(s);
     });
-    monthOrder.sort().reverse(); // mais recente primeiro
+    monthOrder.sort(); // ordem cronológica: meses passados primeiro, depois atual/futuros (o mês atual "sobe" na pilha conforme o tempo passa)
 
     // meses futuros/atual (incluindo os recém-gerados pelo montador automático) começam expandidos
     monthOrder.forEach(function(mk){

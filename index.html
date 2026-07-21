@@ -2020,7 +2020,9 @@ var firebaseConfig = {
       var withoutWarning = candidates.filter(function(v){ return !checkRestWarning(v.id, role, occurrence.date, combinedSchedule); });
       var finalPool = withoutWarning.length ? withoutWarning : candidates;
       finalPool.sort(function(a,b){ return scoreFor(b) - scoreFor(a); });
-      return { volunteer: finalPool[0], hadWarning: !withoutWarning.length };
+      var chosen = finalPool[0];
+      var warningDetail = checkRestWarning(chosen.id, role, occurrence.date, combinedSchedule);
+      return { volunteer: chosen, hadWarning: !!warningDetail, warningDetail: warningDetail };
     }
 
     var result = { classId: cls.id, className: cls.name, professor:null, auxiliar:null, priority:null, warnings:[] };
@@ -2034,7 +2036,7 @@ var firebaseConfig = {
       }
       result.professor = soloPick.volunteer; // reaproveita o campo "professor" para guardar o único escalado
       result.priority = 1;
-      if(soloPick.hadWarning) result.warnings.push(soloPick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+      if(soloPick.hadWarning) result.warnings.push(soloPick.volunteer.name+' — '+cls.name+', '+fmtDateShort(occurrence.date)+': '+soloPick.warningDetail);
       return result;
     }
 
@@ -2044,7 +2046,7 @@ var firebaseConfig = {
       return result;
     }
     result.professor = profPick.volunteer;
-    if(profPick.hadWarning) result.warnings.push(profPick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+    if(profPick.hadWarning) result.warnings.push(profPick.volunteer.name+' — '+cls.name+', '+fmtDateShort(occurrence.date)+': '+profPick.warningDetail);
 
     var auxCandidates = pool.filter(function(v){ return v.role==='Auxiliar' && v.id!==result.professor.id; });
     var withoutWarnAux = auxCandidates.filter(function(v){ return !checkRestWarning(v.id, 'Auxiliar', occurrence.date, combinedSchedule); });
@@ -2059,7 +2061,10 @@ var firebaseConfig = {
     if(auxPoolFinal.length){
       result.auxiliar = auxPoolFinal[0];
       result.priority = 1;
-      if(!withoutWarnAux.length) result.warnings.push(result.auxiliar.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+      if(!withoutWarnAux.length){
+        var auxWarningDetail = checkRestWarning(result.auxiliar.id, 'Auxiliar', occurrence.date, combinedSchedule);
+        result.warnings.push(result.auxiliar.name+' — '+cls.name+', '+fmtDateShort(occurrence.date)+': '+auxWarningDetail);
+      }
     } else {
       result.priority = 3;
       result.warnings.push('Turma '+cls.name+' ficará apenas com professor(a) em '+fmtDateShort(occurrence.date)+' — nenhum(a) auxiliar disponível.');

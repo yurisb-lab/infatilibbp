@@ -1134,6 +1134,14 @@ var firebaseConfig = {
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
       if(!name){ showToast('Digite um nome'); return; }
+      // captura um período de indisponibilidade que tenha sido preenchido
+      // nos campos "De"/"Até" mas cujo usuário esqueceu de confirmar
+      // clicando em "+ Adicionar período" antes de salvar
+      var pendingStart = document.getElementById('f-unavail-start').value;
+      var pendingEnd = document.getElementById('f-unavail-end').value;
+      if(pendingStart && pendingEnd && pendingStart<=pendingEnd){
+        unavailPeriods.push({start:pendingStart, end:pendingEnd});
+      }
       var derivedAgeRanges = Array.from(new Set(selectedClasses.map(function(cid){
         var cls = DATA.classes.find(function(c){return c.id===cid;});
         return cls ? (cls.ageRange||'').trim() : '';
@@ -1713,9 +1721,10 @@ var firebaseConfig = {
     classCounter[counterKey] = (classCounter[counterKey]||0) + 1;
     var num = classCounter[counterKey];
     var numCircle = '<span class="lesson-num" style="background:'+(pal?pal.solid:'var(--ink-soft)')+'">'+num+'</span>';
+    var displayName = matchedClass ? matchedClass.name : s.className;
     var titleBadge = pal
-      ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
-      : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
+      ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(displayName)+'</span>'
+      : '<p class="card-title" style="margin:0">'+escapeHtml(displayName)+'</p>';
     var statusBadges = '';
     if(s.teacherAbsent) statusBadges += '<span class="pill status-warn">❌ Faltou</span>';
     if(s.teacherSubstituted) statusBadges += '<span class="pill status-sub">🔄 Substituído'+(s.substituteName?': '+escapeHtml(s.substituteName):'')+'</span>';
@@ -1744,59 +1753,76 @@ var firebaseConfig = {
     var currentMonthKey = today.slice(0,7);
     if(!(currentMonthKey in expandedMonths)) expandedMonths[currentMonthKey] = true;
 
-    var monthGroups = {}; var monthOrder = [];
+    var monthGroups = {}; var monthKeysSet = {};
     sorted.forEach(function(s){
       var mk = s.date.slice(0,7);
-      if(!monthGroups[mk]){ monthGroups[mk] = []; monthOrder.push(mk); }
+      if(!monthGroups[mk]){ monthGroups[mk] = []; monthKeysSet[mk] = true; }
       monthGroups[mk].push(s);
     });
-    monthOrder.sort(); // ordem cronológica: meses passados primeiro, depois atual/futuros (o mês atual "sobe" na pilha conforme o tempo passa)
 
-    // meses futuros/atual (incluindo os recém-gerados pelo montador automático) começam expandidos
-    monthOrder.forEach(function(mk){
-      if(mk>=currentMonthKey && !(mk in expandedMonths)) expandedMonths[mk] = true;
+    var pastKeys = Object.keys(monthKeysSet).filter(function(mk){ return mk<currentMonthKey; }).sort();
+    var futureKeys = Object.keys(monthKeysSet).filter(function(mk){ return mk>currentMonthKey; }).sort();
+
+    // meses futuros (incluindo os recém-gerados pelo montador automático) começam expandidos
+    futureKeys.forEach(function(mk){
+      if(!(mk in expandedMonths)) expandedMonths[mk] = true;
     });
 
-    var html = '';
-    var pastDividerShown = false;
-    monthOrder.forEach(function(mk){
-      var items = monthGroups[mk];
+    function monthGroupHtml(mk){
+      var items = monthGroups[mk] || [];
       var parts = mk.split('-');
       var label = monthLabel(parseInt(parts[1],10)-1) + ' de ' + parts[0];
       var isExpanded = !!expandedMonths[mk];
-      if(mk<currentMonthKey && !pastDividerShown){
-        pastDividerShown = true;
-        html += '<div class="month-divider">Meses anteriores</div>';
-      }
-      html += '<div class="month-group">';
-      html += '<div class="month-head" onclick="window.__toggleMonthExpand(\''+mk+'\')">'+
+      var out = '<div class="month-group">';
+      out += '<div class="month-head" onclick="window.__toggleMonthExpand(\''+mk+'\')">'+
         '<span class="month-label">'+label+'</span>'+
         '<span class="row" style="gap:8px"><span class="pill">'+items.length+'</span><span style="font-size:13px">'+(isExpanded?'▲':'▼')+'</span></span>'+
       '</div>';
       if(isExpanded){
-        var dayGroups = {}; var dayOrder = [];
-        items.forEach(function(s){
-          if(!dayGroups[s.date]){ dayGroups[s.date] = []; dayOrder.push(s.date); }
-          dayGroups[s.date].push(s);
-        });
-        dayOrder.sort();
-        // mostra primeiro a próxima semana (datas futuras, da mais próxima em diante) e só depois as datas passadas
-        var futureDayOrder = dayOrder.filter(function(d){ return d>=today; });
-        var pastDayOrder = dayOrder.filter(function(d){ return d<today; });
-        dayOrder = futureDayOrder.concat(pastDayOrder);
-        var classCounter = {};
-        dayOrder.forEach(function(dateIso){
-          html += '<div class="day-group">';
-          html += '<div class="day-head"><span class="day-label">'+fmtDate(dateIso)+'</span>'+
-            '<button class="btn small" onclick="event.stopPropagation();window.__addToDay(\''+dateIso+'\')">+ Turma</button></div>';
-          dayGroups[dateIso].forEach(function(s){
-            html += scheduleCardHtml(s, classCounter, today);
+        if(!items.length){
+          out += '<p class="muted" style="padding:10px 4px 4px">Nenhuma escala neste mês ainda.</p>';
+        } else {
+          var dayGroups = {}; var dayOrder = [];
+          items.forEach(function(s){
+            if(!dayGroups[s.date]){ dayGroups[s.date] = []; dayOrder.push(s.date); }
+            dayGroups[s.date].push(s);
           });
-          html += '</div>';
-        });
+          dayOrder.sort();
+          // mostra primeiro a próxima semana (datas futuras, da mais próxima em diante) e só depois as datas passadas
+          var futureDayOrder = dayOrder.filter(function(d){ return d>=today; });
+          var pastDayOrder = dayOrder.filter(function(d){ return d<today; });
+          dayOrder = futureDayOrder.concat(pastDayOrder);
+          var classCounter = {};
+          dayOrder.forEach(function(dateIso){
+            out += '<div class="day-group">';
+            out += '<div class="day-head"><span class="day-label">'+fmtDate(dateIso)+'</span>'+
+              '<button class="btn small" onclick="event.stopPropagation();window.__addToDay(\''+dateIso+'\')">+ Turma</button></div>';
+            dayGroups[dateIso].forEach(function(s){
+              out += scheduleCardHtml(s, classCounter, today);
+            });
+            out += '</div>';
+          });
+        }
       }
-      html += '</div>';
-    });
+      out += '</div>';
+      return out;
+    }
+
+    // 1) mês atual sempre no topo (mesmo que ainda não tenha escalas)
+    var html = monthGroupHtml(currentMonthKey);
+
+    // 2) separador + meses anteriores
+    if(pastKeys.length){
+      html += '<div class="month-divider">Meses anteriores</div>';
+      pastKeys.forEach(function(mk){ html += monthGroupHtml(mk); });
+    }
+
+    // 3) separador + meses futuros
+    if(futureKeys.length){
+      html += '<div class="month-divider">Meses futuros</div>';
+      futureKeys.forEach(function(mk){ html += monthGroupHtml(mk); });
+    }
+
     list.innerHTML = html;
   }
   window.__openSched = openScheduleForm;
@@ -2664,6 +2690,10 @@ var firebaseConfig = {
       if(id){
         var idx = DATA.classes.findIndex(function(x){return x.id===id;});
         DATA.classes[idx] = obj;
+        // mantém o nome exibido nas escalas já criadas em sincronia com o novo nome da turma
+        DATA.schedule.forEach(function(s){
+          if(s.classId===id) s.className = name;
+        });
       } else {
         DATA.classes.push(obj);
       }
@@ -3375,9 +3405,10 @@ var firebaseConfig = {
         var matchedClass = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
         var lesson = s.lessonId ? lessonById(s.lessonId) : (matchedClass ? DATA.lessons.find(function(l){return l.classId===matchedClass.id && l.date===s.date;}) : null);
         var pal = matchedClass ? (CLASS_COLORS[matchedClass.color] || CLASS_COLORS.roxo) : null;
+        var displayName = matchedClass ? matchedClass.name : s.className;
         var titleBadge = pal
-          ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(s.className)+'</span>'
-          : '<p class="card-title" style="margin:0">'+escapeHtml(s.className)+'</p>';
+          ? '<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';margin-bottom:0;padding:4px 12px;font-size:14.5px">'+escapeHtml(displayName)+'</span>'
+          : '<p class="card-title" style="margin:0">'+escapeHtml(displayName)+'</p>';
         return '<div class="card">'+
           '<div class="row">'+titleBadge+(s.time&&s.time!==headerTime?'<span class="pill">'+escapeHtml(s.time)+'</span>':'')+'</div>'+
           (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px">Sem voluntários definidos</p>')+

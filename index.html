@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Ministério Infantil</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FFFFFF">
@@ -58,6 +58,7 @@
     max-width:480px;
     margin:0 auto;
     min-height:100vh;
+    min-height:100dvh;
     background:var(--bg);
     position:relative;
     padding-bottom:84px;
@@ -175,7 +176,7 @@
   .fab{
     position:fixed;
     right:calc(50% - 240px + 18px);
-    bottom:92px;
+    bottom:calc(92px + env(safe-area-inset-bottom));
     width:52px; height:52px;
     border-radius:50%;
     background:var(--coral);
@@ -239,7 +240,7 @@
     border-radius:10px;
     padding:10px 12px;
     font-family:inherit;
-    font-size:14.5px;
+    font-size:16px;
     background:#fff;
     color:var(--ink);
   }
@@ -400,7 +401,10 @@
     <!-- ESCALAS -->
     <div class="view" id="view-escalas">
       <div class="section-title">Escalas <span class="muted" id="escalas-count"></span>
-        <button class="btn small" id="btn-export" style="margin-left:auto">Exportar</button>
+        <span style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn small" id="btn-auto-generate">🤖 Montar Escalas</button>
+          <button class="btn small" id="btn-export">Exportar</button>
+        </span>
       </div>
       <div id="escalas-list"></div>
     </div>
@@ -500,8 +504,12 @@ var firebaseConfig = {
     Auxiliar:  { minGap: 0, maxConsecutive: 2 },
     Pregador:  { minGap: 0, maxConsecutive: 0 }
   };
+  var DEFAULT_CULTOS = [
+    { id:'culto-dom', weekday:0, time:'09:00', label:'Domingo' },
+    { id:'culto-sab', weekday:6, time:'19:00', label:'Sábado' }
+  ];
   function defaultSettings(){
-    return { reminderDay: 5, restRules: JSON.parse(JSON.stringify(DEFAULT_REST_RULES)) };
+    return { reminderDay: 5, restRules: JSON.parse(JSON.stringify(DEFAULT_REST_RULES)), cultos: JSON.parse(JSON.stringify(DEFAULT_CULTOS)) };
   }
   var DATA = { volunteers: [], classes: [], schedule: [], lessons: [], reminders: [], children: [], settings: defaultSettings() };
   var loaded = false;
@@ -514,6 +522,7 @@ var firebaseConfig = {
       if(r==='__default') return;
       if(!DATA.settings.restRules[r]) DATA.settings.restRules[r] = { minGap:0, maxConsecutive:0 };
     });
+    if(!DATA.settings.cultos || !DATA.settings.cultos.length) DATA.settings.cultos = JSON.parse(JSON.stringify(DEFAULT_CULTOS));
   }
 
   var CLASS_COLORS = {
@@ -542,8 +551,9 @@ var firebaseConfig = {
     if(!a||!b) return null;
     return Math.round((a-b)/86400000);
   }
-  function volunteerSundayDates(volunteerId){
-    return DATA.schedule
+  function volunteerSundayDates(volunteerId, scheduleArr){
+    var src = scheduleArr || DATA.schedule;
+    return src
       .filter(function(s){ return s.tipo!=='Sábado' && (s.volunteerIds||[]).indexOf(volunteerId)>=0; })
       .map(function(s){ return s.date; })
       .filter(Boolean)
@@ -584,9 +594,9 @@ var firebaseConfig = {
     }
     return count;
   }
-  function computeVolunteerStats(volunteerId, refIso){
+  function computeVolunteerStats(volunteerId, refIso, scheduleArr){
     refIso = refIso || todayISO();
-    var allDates = volunteerSundayDates(volunteerId);
+    var allDates = volunteerSundayDates(volunteerId, scheduleArr);
     var past = allDates.filter(function(d){ return d<=refIso; });
     var last = past.length ? past[past.length-1] : null;
     var daysSince = last ? diffDays(refIso, last) : null;
@@ -632,10 +642,10 @@ var firebaseConfig = {
     return (role && DATA.settings.restRules[role]) || { minGap:0, maxConsecutive:0 };
   }
   // retorna string de aviso, ou null se não há problema
-  function checkRestWarning(volunteerId, role, dateIso){
+  function checkRestWarning(volunteerId, role, dateIso, scheduleArr){
     var rule = restRuleFor(role);
     if(!rule || (!rule.minGap && !rule.maxConsecutive)) return null;
-    var dates = volunteerSundayDates(volunteerId).filter(function(d){ return d!==dateIso; });
+    var dates = volunteerSundayDates(volunteerId, scheduleArr).filter(function(d){ return d!==dateIso; });
     var set = {}; dates.forEach(function(d){ set[d]=true; });
     // domingo anterior a dateIso
     var prevD = parseISO(dateIso); prevD.setDate(prevD.getDate()-7);
@@ -658,15 +668,15 @@ var firebaseConfig = {
     }
     return null;
   }
-  function priorityScore(v, dateIso){
-    var stats = computeVolunteerStats(v.id, dateIso);
+  function priorityScore(v, dateIso, scheduleArr){
+    var stats = computeVolunteerStats(v.id, dateIso, scheduleArr);
     var days = stats.daysSince===null ? 9999 : stats.daysSince;
     // quanto maior, mais prioridade (deve ser escalado primeiro)
     return days - (stats.thisMonth*10) - (stats.streak*15);
   }
-  function volunteerStatusTag(v, role, dateIso){
-    var stats = computeVolunteerStats(v.id, dateIso);
-    var warning = checkRestWarning(v.id, role, dateIso);
+  function volunteerStatusTag(v, role, dateIso, scheduleArr){
+    var stats = computeVolunteerStats(v.id, dateIso, scheduleArr);
+    var warning = checkRestWarning(v.id, role, dateIso, scheduleArr);
     if(warning) return { icon:'⚠️', text:'⚠️ '+ (stats.last?('serviu há '+stats.daysSince+'d'):'nunca serviu') };
     if(stats.last===null) return { icon:'⭐', text:'⭐ nunca escalado(a)' };
     if(stats.daysSince>=21 || stats.thisMonth<=1) return { icon:'⭐', text:'⭐ há '+stats.daysSince+'d · '+stats.thisMonth+'x este mês' };
@@ -677,6 +687,7 @@ var firebaseConfig = {
     if(role && v.role && v.role!==role) return false;
     if(classId){
       if(v.classIds && v.classIds.length && v.classIds.indexOf(classId)===-1) return false;
+      if(v.classIdsExcluded && v.classIdsExcluded.indexOf(classId)>=0) return false;
     }
     if(tipo && v.availability && v.availability.length && v.availability.indexOf(tipo)===-1) return false;
     return true;
@@ -871,6 +882,7 @@ var firebaseConfig = {
   document.getElementById('btn-new-child').addEventListener('click', function(){ openChildForm(); });
   document.getElementById('btn-new-message').addEventListener('click', function(){ openMessageForm(); });
   document.getElementById('btn-export').addEventListener('click', function(){ openExportForm(); });
+  document.getElementById('btn-auto-generate').addEventListener('click', function(){ openGeneratorForm(); });
 
   var childrenSearchTerm = '';
   document.getElementById('criancas-search').addEventListener('input', function(e){
@@ -894,9 +906,10 @@ var firebaseConfig = {
 
   // ---------- VOLUNTÁRIOS ----------
   function openVolunteerForm(id){
-    var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:'',role:'',ageRanges:[],classIds:[],availability:[],availabilityCustom:''};
+    var v = id ? DATA.volunteers.find(function(x){return x.id===id;}) : {name:'',phone:'',note:'',role:'',ageRanges:[],classIds:[],classIdsExcluded:[],availability:[],availabilityCustom:''};
     var selectedRole = v.role || '';
     var selectedClasses = (v.classIds||[]).slice();
+    var selectedClassesExcluded = (v.classIdsExcluded||[]).slice();
 
     var statsBoxHtml = '';
     if(id){
@@ -950,6 +963,13 @@ var firebaseConfig = {
           }).join('')+'</div>'
         : '<p class="muted">Cadastre turmas na aba Aulas para habilitar esta opção.</p>')+
       '<p class="muted" style="margin-top:4px">Nenhuma turma marcada = pode servir em qualquer turma.</p>'+
+      '<label>Turmas em que NÃO pode servir (opcional)</label>'+
+      (DATA.classes.length
+        ? '<div class="chip-select" id="class-excl-chips">'+DATA.classes.map(function(c){
+            return '<div class="chip'+(selectedClassesExcluded.indexOf(c.id)>=0?' on':'')+'" data-classid="'+c.id+'">'+escapeHtml(c.name)+'</div>';
+          }).join('')+'</div>'
+        : '')+
+      '<p class="muted" style="margin-top:4px">Usado pelo gerador automático de escalas para nunca sugerir este(a) voluntário(a) nestas turmas.</p>'+
       '<label>Observação (opcional)</label><input id="f-note" value="'+escapeAttr(v.note||'')+'" placeholder="Ex: prefere berçário">'+
       '<div class="sheet-actions">'+
         (id?'<button class="btn danger-ghost" id="f-del">Excluir</button>':'')+
@@ -979,6 +999,17 @@ var firebaseConfig = {
         });
       });
     }
+    var classExclChipsEl = document.getElementById('class-excl-chips');
+    if(classExclChipsEl){
+      classExclChipsEl.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          var cid = c.getAttribute('data-classid');
+          var i = selectedClassesExcluded.indexOf(cid);
+          if(i>=0){ selectedClassesExcluded.splice(i,1); c.classList.remove('on'); }
+          else{ selectedClassesExcluded.push(cid); c.classList.add('on'); }
+        });
+      });
+    }
     document.getElementById('f-cancel').onclick = closeSheet;
     document.getElementById('f-save').onclick = function(){
       var name = document.getElementById('f-name').value.trim();
@@ -994,6 +1025,7 @@ var firebaseConfig = {
         role: selectedRole,
         ageRanges: derivedAgeRanges,
         classIds: selectedClasses,
+        classIdsExcluded: selectedClassesExcluded,
         availability: (v.availability||[]),
         availabilityCustom: v.availabilityCustom||'',
         note: document.getElementById('f-note').value.trim()
@@ -1617,6 +1649,10 @@ var firebaseConfig = {
           dayGroups[s.date].push(s);
         });
         dayOrder.sort();
+        // mostra primeiro a próxima semana (datas futuras, da mais próxima em diante) e só depois as datas passadas
+        var futureDayOrder = dayOrder.filter(function(d){ return d>=today; });
+        var pastDayOrder = dayOrder.filter(function(d){ return d<today; });
+        dayOrder = futureDayOrder.concat(pastDayOrder);
         var classCounter = {};
         dayOrder.forEach(function(dateIso){
           html += '<div class="day-group">';
@@ -1640,6 +1676,425 @@ var firebaseConfig = {
   window.__addToDay = function(dateIso){
     openScheduleForm(null, dateIso);
   };
+
+  // ---------- GERADOR AUTOMÁTICO DE ESCALAS ----------
+  function cultoTipoFor(weekday){ return weekday===6 ? 'Sábado' : 'Domingo'; }
+
+  function addDaysIso(iso, n){
+    var d = parseISO(iso); d.setDate(d.getDate()+n);
+    return d.toISOString().slice(0,10);
+  }
+  function addMonthsIso(iso, n){
+    var d = parseISO(iso); d.setMonth(d.getMonth()+n);
+    return d.toISOString().slice(0,10);
+  }
+
+  function generateOccurrences(startIso, endIso){
+    ensureSettings();
+    var cultos = DATA.settings.cultos || [];
+    var out = [];
+    if(!cultos.length || !startIso || !endIso || startIso>endIso) return out;
+    var cursor = parseISO(startIso);
+    var end = parseISO(endIso);
+    var guard = 0;
+    while(cursor<=end && guard<400){
+      guard++;
+      var iso = cursor.toISOString().slice(0,10);
+      var wd = cursor.getDay();
+      cultos.forEach(function(c){
+        if(c.weekday===wd){
+          out.push({ date: iso, weekday: wd, time: c.time||'', tipo: cultoTipoFor(wd), cultoId: c.id, label: c.label||'' });
+        }
+      });
+      cursor.setDate(cursor.getDate()+1);
+    }
+    out.sort(function(a,b){ return (a.date+'|'+a.time).localeCompare(b.date+'|'+b.time); });
+    return out;
+  }
+
+  function periodRange(periodKey, customStart, customEnd){
+    var today = todayISO();
+    if(periodKey==='proximo_culto'){
+      var occ = generateOccurrences(today, addDaysIso(today, 13));
+      if(occ.length) return { start: occ[0].date, end: occ[0].date };
+      return { start: today, end: today };
+    }
+    if(periodKey==='15dias') return { start: today, end: addDaysIso(today,15) };
+    if(periodKey==='1mes') return { start: today, end: addMonthsIso(today,1) };
+    if(periodKey==='2meses') return { start: today, end: addMonthsIso(today,2) };
+    if(periodKey==='3meses') return { start: today, end: addMonthsIso(today,3) };
+    return { start: customStart||today, end: customEnd||today };
+  }
+
+  // sugere professor(a) + auxiliar (ou 2º professor) para uma turma num culto específico,
+  // respeitando compatibilidade, regras de descanso, evitando repetição de turma/dupla
+  function assignClassOccurrence(cls, occurrence, combinedSchedule, usedTodayIds, classRotationCount, pairHistory){
+    classRotationCount = classRotationCount || {};
+    pairHistory = pairHistory || {};
+    var pool = DATA.volunteers.filter(function(v){
+      return isVolunteerCompatible(v, cls.id, occurrence.tipo, null) && usedTodayIds.indexOf(v.id)===-1;
+    });
+
+    function scoreFor(v){
+      var base = priorityScore(v, occurrence.date, combinedSchedule);
+      var repeatPenalty = ((classRotationCount[v.id]||{})[cls.id]||0) * 12;
+      return base - repeatPenalty;
+    }
+
+    function pickRole(role, excludeIds){
+      var candidates = pool.filter(function(v){
+        return v.role===role && excludeIds.indexOf(v.id)===-1;
+      });
+      if(!candidates.length) return null;
+      var withoutWarning = candidates.filter(function(v){ return !checkRestWarning(v.id, role, occurrence.date, combinedSchedule); });
+      var finalPool = withoutWarning.length ? withoutWarning : candidates;
+      finalPool.sort(function(a,b){ return scoreFor(b) - scoreFor(a); });
+      return { volunteer: finalPool[0], hadWarning: !withoutWarning.length };
+    }
+
+    var result = { classId: cls.id, className: cls.name, professor:null, auxiliar:null, priority:null, warnings:[] };
+    var profPick = pickRole('Professor', []);
+    if(!profPick){
+      result.warnings.push('Sem professor(a) disponível/compatível para '+cls.name+' em '+fmtDateShort(occurrence.date));
+      return result;
+    }
+    result.professor = profPick.volunteer;
+    if(profPick.hadWarning) result.warnings.push(profPick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+
+    var auxCandidates = pool.filter(function(v){ return v.role==='Auxiliar' && v.id!==result.professor.id; });
+    var withoutWarnAux = auxCandidates.filter(function(v){ return !checkRestWarning(v.id, 'Auxiliar', occurrence.date, combinedSchedule); });
+    var auxPoolFinal = withoutWarnAux.length ? withoutWarnAux : auxCandidates;
+    auxPoolFinal.sort(function(a,b){
+      var pairKeyA = result.professor.id+'|'+a.id;
+      var pairKeyB = result.professor.id+'|'+b.id;
+      var pa = (pairHistory[pairKeyA]||0)*20;
+      var pb = (pairHistory[pairKeyB]||0)*20;
+      return (scoreFor(b)-pb) - (scoreFor(a)-pa);
+    });
+    if(auxPoolFinal.length){
+      result.auxiliar = auxPoolFinal[0];
+      result.priority = 1;
+      if(!withoutWarnAux.length) result.warnings.push(result.auxiliar.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+    } else {
+      var prof2Pick = pickRole('Professor', [result.professor.id]);
+      if(prof2Pick){
+        result.auxiliar = prof2Pick.volunteer;
+        result.priority = 2;
+        if(prof2Pick.hadWarning) result.warnings.push(prof2Pick.volunteer.name+' está fora da meta de descanso ('+cls.name+', '+fmtDateShort(occurrence.date)+')');
+      } else {
+        result.priority = 3;
+        result.warnings.push('Turma '+cls.name+' ficará apenas com professor(a) em '+fmtDateShort(occurrence.date)+' — nenhum(a) auxiliar ou 2º professor(a) disponível.');
+      }
+    }
+    return result;
+  }
+
+  function generateScheduleDraft(startIso, endIso, classIds){
+    var occurrences = generateOccurrences(startIso, endIso);
+    var classesToUse = DATA.classes.filter(function(c){ return !classIds || !classIds.length || classIds.indexOf(c.id)>=0; });
+    var draft = [];
+    var warnings = [];
+    var classRotationCount = {};
+    var pairHistory = {};
+
+    occurrences.forEach(function(occ){
+      var usedTodayIds = [];
+      DATA.schedule.forEach(function(s){
+        if(s.date===occ.date && (s.time||'')===occ.time){
+          (s.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
+        }
+      });
+      classesToUse.forEach(function(cls){
+        var combinedSchedule = DATA.schedule.concat(draft);
+        var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, classRotationCount, pairHistory);
+        if(assign.warnings.length) warnings = warnings.concat(assign.warnings);
+        if(!assign.professor) return;
+        var volunteerIds = [assign.professor.id];
+        if(assign.auxiliar) volunteerIds.push(assign.auxiliar.id);
+        volunteerIds.forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
+        classRotationCount[assign.professor.id] = classRotationCount[assign.professor.id]||{};
+        classRotationCount[assign.professor.id][cls.id] = (classRotationCount[assign.professor.id][cls.id]||0)+1;
+        if(assign.auxiliar){
+          classRotationCount[assign.auxiliar.id] = classRotationCount[assign.auxiliar.id]||{};
+          classRotationCount[assign.auxiliar.id][cls.id] = (classRotationCount[assign.auxiliar.id][cls.id]||0)+1;
+          if(assign.priority===1){
+            var pk = assign.professor.id+'|'+assign.auxiliar.id;
+            pairHistory[pk] = (pairHistory[pk]||0)+1;
+          }
+        }
+        var lessonId = (nextLessonForClass(cls.id)||{}).id || '';
+        var alreadyUsedLesson = lessonId && draft.some(function(d){ return d.classId===cls.id && d.lessonId===lessonId; });
+        draft.push({
+          _draftId: uid(),
+          id: uid(),
+          date: occ.date,
+          tipo: occ.tipo,
+          time: occ.time,
+          className: cls.name,
+          classId: cls.id,
+          role: '',
+          volunteerIds: volunteerIds,
+          lessonId: alreadyUsedLesson ? '' : lessonId,
+          notes: '',
+          teacherSubstituted:false, teacherAbsent:false, substituteName:'',
+          _priority: assign.priority
+        });
+      });
+    });
+
+    var profSet = {}, auxSet = {}, counts = {};
+    draft.forEach(function(d){
+      (d.volunteerIds||[]).forEach(function(vid){
+        counts[vid] = (counts[vid]||0)+1;
+        var v = DATA.volunteers.find(function(x){return x.id===vid;});
+        if(!v) return;
+        if(v.role==='Professor') profSet[vid]=true;
+        else if(v.role==='Auxiliar') auxSet[vid]=true;
+      });
+    });
+    var countVals = Object.keys(counts).map(function(k){return counts[k];});
+    var balanceIndex = 100;
+    if(countVals.length>1){
+      var mean = countVals.reduce(function(a,b){return a+b;},0)/countVals.length;
+      var variance = countVals.reduce(function(a,b){return a+Math.pow(b-mean,2);},0)/countVals.length;
+      var stdev = Math.sqrt(variance);
+      balanceIndex = mean>0 ? Math.max(0, Math.round(100*(1-(stdev/mean)))) : 100;
+    }
+
+    return {
+      start:startIso, end:endIso,
+      occurrences: occurrences,
+      classes: classesToUse,
+      draft: draft,
+      warnings: warnings,
+      summary: {
+        cultos: occurrences.length,
+        turmas: classesToUse.length,
+        escalas: draft.length,
+        professores: Object.keys(profSet).length,
+        auxiliares: Object.keys(auxSet).length,
+        balanceIndex: balanceIndex
+      }
+    };
+  }
+
+  function openGeneratorForm(){
+    var state = { period:'proximo_culto', start: todayISO(), end: addDaysIso(todayISO(),15) };
+    var PERIOD_OPTS = [
+      {key:'proximo_culto', label:'Próximo culto'},
+      {key:'15dias', label:'Próximos 15 dias'},
+      {key:'1mes', label:'Próximo mês'},
+      {key:'2meses', label:'Próximos 2 meses'},
+      {key:'3meses', label:'Próximos 3 meses'},
+      {key:'personalizado', label:'Intervalo personalizado'}
+    ];
+    function customFieldsHtml(){
+      if(state.period!=='personalizado') return '';
+      return '<div class="field-row" style="margin-top:8px">'+
+        '<div><label>Data inicial</label><input type="date" id="f-gen-start" value="'+state.start+'"></div>'+
+        '<div><label>Data final</label><input type="date" id="f-gen-end" value="'+state.end+'"></div>'+
+      '</div>';
+    }
+    function html(){
+      var cultosOk = DATA.settings.cultos && DATA.settings.cultos.length;
+      return '<h2>🤖 Montar Escalas</h2>'+
+        '<p class="muted" style="margin:-4px 4px 10px">O sistema identifica os cultos cadastrados nas Configurações e sugere professor(a) + auxiliar para cada turma, respeitando compatibilidade e metas de descanso.</p>'+
+        (!cultosOk ? '<div class="card" style="border-color:var(--coral)"><p class="card-sub" style="color:var(--coral)">Nenhum culto cadastrado. Cadastre em Configurações → Cultos antes de gerar.</p></div>' : '')+
+        '<label>Período</label>'+
+        '<div class="chip-select" id="gen-period-chips">'+PERIOD_OPTS.map(function(p){
+          return '<div class="chip'+(state.period===p.key?' on':'')+'" data-period="'+p.key+'">'+p.label+'</div>';
+        }).join('')+'</div>'+
+        '<div id="gen-custom-fields">'+customFieldsHtml()+'</div>'+
+        '<div class="sheet-actions" style="margin-top:20px">'+
+          '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+          '<button class="btn primary" id="f-generate">Gerar escalas</button>'+
+        '</div>';
+    }
+    function wire(){
+      document.getElementById('gen-period-chips').querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          state.period = c.getAttribute('data-period');
+          sheet.innerHTML = html();
+          wire();
+        });
+      });
+      var se = document.getElementById('f-gen-start'); if(se) se.addEventListener('change', function(){ state.start = se.value; });
+      var ee = document.getElementById('f-gen-end'); if(ee) ee.addEventListener('change', function(){ state.end = ee.value; });
+      document.getElementById('f-cancel').onclick = closeSheet;
+      document.getElementById('f-generate').onclick = function(){
+        if(!DATA.settings.cultos || !DATA.settings.cultos.length){ showToast('Cadastre ao menos um culto nas Configurações'); return; }
+        if(!DATA.classes.length){ showToast('Cadastre ao menos uma turma antes de gerar'); return; }
+        var range = periodRange(state.period, state.start, state.end);
+        if(!range.start || !range.end || range.start>range.end){ showToast('Período inválido'); return; }
+        var result = generateScheduleDraft(range.start, range.end);
+        openGeneratorPreview(result);
+      };
+    }
+    openSheet(html());
+    wire();
+  }
+  window.__openGenerator = openGeneratorForm;
+
+  function openGeneratorPreview(result){
+    var draft = result.draft.slice();
+    function summaryHtml(){
+      return '<div class="card" style="margin-top:6px">'+
+        '<p class="card-title" style="margin-bottom:8px">📋 Período gerado</p>'+
+        '<p class="card-sub">'+fmtDateShort(result.start)+' até '+fmtDateShort(result.end)+'</p>'+
+        '<div class="row" style="margin-top:8px"><span class="muted">Cultos</span><strong>'+result.summary.cultos+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Turmas</span><strong>'+result.summary.turmas+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Escalas criadas</span><strong>'+draft.length+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Professores utilizados</span><strong>'+result.summary.professores+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Auxiliares utilizados</span><strong>'+result.summary.auxiliares+'</strong></div>'+
+        '<div class="row" style="margin-top:6px"><span class="muted">Índice de equilíbrio</span><strong>'+result.summary.balanceIndex+'%</strong></div>'+
+      '</div>'+
+      (result.warnings.length
+        ? '<div class="card" style="margin-top:10px;border-color:var(--coral)">'+
+            '<p class="card-title" style="font-size:14px;color:var(--coral)">⚠️ Avisos ('+result.warnings.length+')</p>'+
+            result.warnings.slice(0,12).map(function(w){ return '<p class="card-sub" style="margin-top:4px">'+escapeHtml(w)+'</p>'; }).join('')+
+            (result.warnings.length>12?'<p class="card-sub" style="margin-top:4px">…e mais '+(result.warnings.length-12)+'.</p>':'')+
+          '</div>'
+        : '');
+    }
+    function draftListHtml(){
+      if(!draft.length) return '<div class="card empty">Nenhuma escala pôde ser gerada para este período.</div>';
+      var byDate = {}; var order = [];
+      draft.forEach(function(d){
+        if(!byDate[d.date]){ byDate[d.date]=[]; order.push(d.date); }
+        byDate[d.date].push(d);
+      });
+      order.sort();
+      var out = '';
+      order.forEach(function(dateIso){
+        out += '<p class="muted" style="margin:14px 4px 6px;font-weight:600">'+fmtDate(dateIso)+'</p>';
+        byDate[dateIso].forEach(function(d){
+          var names = volunteerNames(d.volunteerIds);
+          var cls = DATA.classes.find(function(c){return c.id===d.classId;});
+          var pal = cls ? (CLASS_COLORS[cls.color]||CLASS_COLORS.roxo) : null;
+          out += '<div class="card" style="padding:10px 14px;margin-bottom:8px">'+
+            '<div class="row">'+
+              (pal?'<span class="class-badge" style="background:'+pal.tint+';color:'+pal.text+';padding:4px 10px;font-size:13.5px;margin-bottom:0">'+escapeHtml(d.className)+'</span>':'<strong>'+escapeHtml(d.className)+'</strong>')+
+              '<span class="pill'+(d._priority===3?' coral':'')+'">'+(d.time?d.time+' · ':'')+d.tipo+'</span>'+
+            '</div>'+
+            (names.length?'<div class="tag-row">'+names.map(function(n){return '<span class="tag">'+escapeHtml(n)+'</span>';}).join('')+'</div>':'<p class="card-sub" style="margin-top:6px;color:var(--coral)">Sem voluntário atribuído</p>')+
+            (d._priority===3?'<p class="card-sub" style="margin-top:6px;color:var(--coral)">⚠️ Apenas professor(a) — sem auxiliar disponível</p>':'')+
+            '<div class="sheet-actions" style="margin-top:8px">'+
+              '<button type="button" class="btn small" data-regen="'+d._draftId+'">🎲 Gerar novamente</button>'+
+              '<button type="button" class="btn small danger-ghost" data-del="'+d._draftId+'">Excluir</button>'+
+            '</div>'+
+          '</div>';
+        });
+      });
+      return out;
+    }
+    function html(){
+      return '<h2>Pré-visualização da escala</h2>'+
+        summaryHtml()+
+        '<p class="section-title" style="margin:16px 4px 6px">Escalas geradas <span class="muted">('+draft.length+')</span></p>'+
+        '<div id="gen-draft-list">'+draftListHtml()+'</div>'+
+        '<div class="sheet-actions" style="margin-top:18px">'+
+          '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+          '<button class="btn" id="f-regen-all">🔁 Gerar novamente</button>'+
+        '</div>'+
+        '<div class="sheet-actions" style="margin-top:8px">'+
+          '<button class="btn primary block" id="f-accept">✅ Aceitar todas ('+draft.length+')</button>'+
+        '</div>';
+    }
+    function wire(){
+      document.getElementById('gen-draft-list').querySelectorAll('[data-del]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var did = btn.getAttribute('data-del');
+          draft = draft.filter(function(d){return d._draftId!==did;});
+          rerender();
+        });
+      });
+      document.getElementById('gen-draft-list').querySelectorAll('[data-regen]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var did = btn.getAttribute('data-regen');
+          var item = draft.find(function(d){return d._draftId===did;});
+          if(!item) return;
+          var cls = DATA.classes.find(function(c){return c.id===item.classId;});
+          if(!cls) return;
+          var occ = { date:item.date, time:item.time, tipo:item.tipo };
+          var others = draft.filter(function(d){return d._draftId!==did;});
+          var combinedSchedule = DATA.schedule.concat(others);
+          var usedTodayIds = [];
+          others.forEach(function(d){
+            if(d.date===occ.date && (d.time||'')===occ.time){
+              (d.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
+            }
+          });
+          DATA.schedule.forEach(function(s){
+            if(s.date===occ.date && (s.time||'')===occ.time){
+              (s.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
+            }
+          });
+          var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, {}, {});
+          if(!assign.professor){ showToast('Nenhum voluntário compatível disponível'); return; }
+          var vids = [assign.professor.id];
+          if(assign.auxiliar) vids.push(assign.auxiliar.id);
+          item.volunteerIds = vids;
+          item._priority = assign.priority;
+          rerender();
+          showToast('Escala regenerada');
+        });
+      });
+      document.getElementById('f-cancel').onclick = closeSheet;
+      document.getElementById('f-regen-all').onclick = function(){
+        result = generateScheduleDraft(result.start, result.end);
+        draft = result.draft.slice();
+        rerender();
+        showToast('Escalas geradas novamente');
+      };
+      document.getElementById('f-accept').onclick = function(){
+        if(!draft.length){ showToast('Nada para salvar'); return; }
+        draft.forEach(function(d){
+          DATA.schedule.push({
+            id: d.id, date:d.date, tipo:d.tipo, time:d.time, className:d.className, classId:d.classId,
+            role:d.role||'', volunteerIds:d.volunteerIds, lessonId:d.lessonId||'', notes:d.notes||'',
+            teacherSubstituted:false, teacherAbsent:false, substituteName:''
+          });
+          if(d.lessonId){
+            var lesson = lessonById(d.lessonId);
+            if(lesson) lesson.date = d.date;
+          }
+        });
+        save(); renderAll(); closeSheet();
+        showToast(draft.length+' escala(s) criada(s)');
+      };
+    }
+    function rerender(){
+      sheet.innerHTML = html();
+      wire();
+    }
+    openSheet(html());
+    wire();
+  }
+  window.__openGeneratorPreview = openGeneratorPreview;
+
+  function regenerateSingleSchedule(id){
+    var s = DATA.schedule.find(function(x){return x.id===id;});
+    if(!s) return;
+    var cls = s.classId ? DATA.classes.find(function(c){return c.id===s.classId;}) : findClassByName(s.className);
+    if(!cls){ showToast('Vincule esta escala a uma turma cadastrada para usar a sugestão automática'); return; }
+    var occ = { date:s.date, time:s.time||'', tipo: s.tipo==='Sábado'?'Sábado':'Domingo' };
+    var combinedSchedule = DATA.schedule.filter(function(x){return x.id!==id;});
+    var usedTodayIds = [];
+    combinedSchedule.forEach(function(x){
+      if(x.date===occ.date && (x.time||'')===occ.time){
+        (x.volunteerIds||[]).forEach(function(vid){ if(usedTodayIds.indexOf(vid)===-1) usedTodayIds.push(vid); });
+      }
+    });
+    var assign = assignClassOccurrence(cls, occ, combinedSchedule, usedTodayIds, {}, {});
+    if(!assign.professor){ showToast('Nenhum voluntário compatível disponível para sugerir'); return; }
+    var vids = [assign.professor.id];
+    if(assign.auxiliar) vids.push(assign.auxiliar.id);
+    s.volunteerIds = vids;
+    save(); renderAll();
+    openScheduleForm(id);
+    showToast('Sugestão gerada — revise e salve');
+  }
+  window.__regenSchedule = regenerateSingleSchedule;
 
   // ---------- EXPORTAR ESCALAS (texto) ----------
   function pad2(n){ return (n<10?'0':'')+n; }
@@ -2688,6 +3143,13 @@ var firebaseConfig = {
     if(id){
       var actions = sheet.querySelector('.sheet-actions');
       if(actions){
+        var regenBtn = document.createElement('button');
+        regenBtn.className = 'btn block';
+        regenBtn.textContent = '🎲 Gerar novamente esta escala';
+        regenBtn.style.marginTop = '10px';
+        regenBtn.onclick = function(){ regenerateSingleSchedule(id); };
+        sheet.appendChild(regenBtn);
+
         var genBtn = document.createElement('button');
         genBtn.className = 'btn block';
         genBtn.textContent = 'Gerar mensagem de lembrete';
@@ -2708,6 +3170,7 @@ var firebaseConfig = {
     ensureSettings();
     var current = DATA.settings.reminderDay;
     var restRules = JSON.parse(JSON.stringify(DATA.settings.restRules));
+    var cultos = JSON.parse(JSON.stringify(DATA.settings.cultos||[]));
     var permStatus = ('Notification' in window) ? Notification.permission : 'unsupported';
     var statusLabel = permStatus==='granted' ? 'ativadas ✅' : permStatus==='denied' ? 'bloqueadas no navegador' : permStatus==='unsupported' ? 'não suportadas neste navegador' : 'ainda não ativadas';
 
@@ -2728,53 +3191,96 @@ var firebaseConfig = {
       }).join('');
     }
 
-    openSheet(
-      '<h2>Configurações</h2>'+
-      '<label>Dia da semana para lembrar de enviar a escala</label>'+
-      '<div class="chip-select" id="day-chips">'+ WEEKDAYS.map(function(w,i){
-        return '<div class="chip'+(i===current?' on':'')+'" data-day="'+i+'">'+w+'</div>';
-      }).join('') +'</div>'+
-      '<p class="muted" style="margin-top:10px">No dia escolhido, ao abrir o app vai aparecer uma notificação lembrando de enviar a escala do próximo domingo para os membros.</p>'+
-      '<label style="margin-top:16px">Notificações neste celular/navegador</label>'+
-      '<p class="card-sub">Status: '+statusLabel+'</p>'+
-      '<button class="btn primary block" id="f-enable-notif" style="margin-top:8px" type="button">Ativar notificações neste aparelho</button>'+
-      '<label style="margin-top:20px">⚖️ Metas de descanso por função</label>'+
-      '<p class="muted" style="margin:-4px 4px 4px">O app apenas avisa quando a regra não é respeitada — nunca impede de escalar alguém.</p>'+
-      '<div id="rest-rules-box">'+restRulesHtml()+'</div>'+
-      '<div class="sheet-actions" style="margin-top:20px">'+
-        '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
-        '<button class="btn primary" id="f-save">Salvar</button>'+
-      '</div>'
-    );
-    var selectedDay = current;
-    document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        selectedDay = parseInt(c.getAttribute('data-day'),10);
-        document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
-        c.classList.add('on');
-      });
-    });
-    document.getElementById('rest-rules-box').querySelectorAll('.chip-select').forEach(function(group){
-      var role = group.getAttribute('data-rule-role');
-      var field = group.getAttribute('data-rule-field');
-      group.querySelectorAll('.chip').forEach(function(c){
+    function cultosListHtml(){
+      if(!cultos.length) return '<p class="muted">Nenhum culto cadastrado ainda.</p>';
+      var sorted = cultos.slice().sort(function(a,b){ return (a.weekday+'|'+a.time).localeCompare(b.weekday+'|'+b.time); });
+      return sorted.map(function(c){
+        return '<div class="row" style="padding:8px 12px;background:#fff;border:1px solid var(--border);border-radius:10px;margin-top:6px">'+
+          '<span>'+WEEKDAYS[c.weekday]+(c.time?' · '+escapeHtml(c.time):'')+'</span>'+
+          '<button type="button" class="btn small danger-ghost" data-culto-del="'+c.id+'">Remover</button>'+
+        '</div>';
+      }).join('');
+    }
+
+    function html(){
+      return '<h2>Configurações</h2>'+
+        '<label>Dia da semana para lembrar de enviar a escala</label>'+
+        '<div class="chip-select" id="day-chips">'+ WEEKDAYS.map(function(w,i){
+          return '<div class="chip'+(i===current?' on':'')+'" data-day="'+i+'">'+w+'</div>';
+        }).join('') +'</div>'+
+        '<p class="muted" style="margin-top:10px">No dia escolhido, ao abrir o app vai aparecer uma notificação lembrando de enviar a escala do próximo domingo para os membros.</p>'+
+        '<label style="margin-top:16px">Notificações neste celular/navegador</label>'+
+        '<p class="card-sub">Status: '+statusLabel+'</p>'+
+        '<button class="btn primary block" id="f-enable-notif" style="margin-top:8px" type="button">Ativar notificações neste aparelho</button>'+
+        '<label style="margin-top:20px">⛪ Cultos cadastrados</label>'+
+        '<p class="muted" style="margin:-4px 4px 8px">Dias e horários de culto da igreja — usados pelo gerador automático de escalas para identificar quantos e quais cultos existem em cada período.</p>'+
+        '<div id="cultos-list-box">'+cultosListHtml()+'</div>'+
+        '<div class="field-row" style="margin-top:10px">'+
+          '<div><label>Dia da semana</label><select id="f-culto-day">'+WEEKDAYS.map(function(w,i){return '<option value="'+i+'">'+w+'</option>';}).join('')+'</select></div>'+
+          '<div><label>Horário</label><input id="f-culto-time" value="19:00" placeholder="19:00"></div>'+
+        '</div>'+
+        '<button type="button" class="btn small" id="f-culto-add" style="margin-top:8px">+ Adicionar culto</button>'+
+        '<label style="margin-top:20px">⚖️ Metas de descanso por função</label>'+
+        '<p class="muted" style="margin:-4px 4px 4px">Na edição manual, o app apenas avisa quando a regra não é respeitada. No gerador automático, estas metas são respeitadas como regra obrigatória sempre que possível.</p>'+
+        '<div id="rest-rules-box">'+restRulesHtml()+'</div>'+
+        '<div class="sheet-actions" style="margin-top:20px">'+
+          '<button class="btn ghost" id="f-cancel">Cancelar</button>'+
+          '<button class="btn primary" id="f-save">Salvar</button>'+
+        '</div>';
+    }
+
+    function wire(){
+      var selectedDay = current;
+      document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(c){
         c.addEventListener('click', function(){
-          restRules[role][field] = parseInt(c.getAttribute('data-val'),10);
-          group.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+          selectedDay = parseInt(c.getAttribute('data-day'),10);
+          document.getElementById('day-chips').querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
           c.classList.add('on');
         });
       });
-    });
-    document.getElementById('f-enable-notif').onclick = function(){ requestNotificationPermission(); };
-    document.getElementById('f-cancel').onclick = closeSheet;
-    document.getElementById('f-save').onclick = function(){
-      DATA.settings = DATA.settings || defaultSettings();
-      DATA.settings.reminderDay = selectedDay;
-      DATA.settings.restRules = restRules;
-      save(); closeSheet();
-      showToast('Configuração salva');
-      checkReminderNotification();
-    };
+      document.getElementById('rest-rules-box').querySelectorAll('.chip-select').forEach(function(group){
+        var role = group.getAttribute('data-rule-role');
+        var field = group.getAttribute('data-rule-field');
+        group.querySelectorAll('.chip').forEach(function(c){
+          c.addEventListener('click', function(){
+            restRules[role][field] = parseInt(c.getAttribute('data-val'),10);
+            group.querySelectorAll('.chip').forEach(function(x){x.classList.remove('on');});
+            c.classList.add('on');
+          });
+        });
+      });
+      function wireCultoDel(btn){
+        btn.addEventListener('click', function(){
+          var cid = btn.getAttribute('data-culto-del');
+          cultos = cultos.filter(function(c){return c.id!==cid;});
+          document.getElementById('cultos-list-box').innerHTML = cultosListHtml();
+          document.getElementById('cultos-list-box').querySelectorAll('[data-culto-del]').forEach(wireCultoDel);
+        });
+      }
+      document.getElementById('cultos-list-box').querySelectorAll('[data-culto-del]').forEach(wireCultoDel);
+      document.getElementById('f-culto-add').onclick = function(){
+        var day = parseInt(document.getElementById('f-culto-day').value,10);
+        var time = document.getElementById('f-culto-time').value.trim();
+        cultos.push({ id: uid(), weekday: day, time: time, label: WEEKDAYS[day] });
+        document.getElementById('cultos-list-box').innerHTML = cultosListHtml();
+        document.getElementById('cultos-list-box').querySelectorAll('[data-culto-del]').forEach(wireCultoDel);
+        showToast('Culto adicionado');
+      };
+      document.getElementById('f-enable-notif').onclick = function(){ requestNotificationPermission(); };
+      document.getElementById('f-cancel').onclick = closeSheet;
+      document.getElementById('f-save').onclick = function(){
+        DATA.settings = DATA.settings || defaultSettings();
+        DATA.settings.reminderDay = selectedDay;
+        DATA.settings.restRules = restRules;
+        DATA.settings.cultos = cultos;
+        save(); closeSheet();
+        showToast('Configuração salva');
+        checkReminderNotification();
+      };
+    }
+
+    openSheet(html());
+    wire();
   }
   document.getElementById('btn-settings').addEventListener('click', openSettingsForm);
 

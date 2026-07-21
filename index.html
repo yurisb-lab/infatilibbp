@@ -499,6 +499,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 // ATENÇÃO: cole aqui o firebaseConfig que você copiou do Console do Firebase.
 var firebaseConfig = {
@@ -558,6 +560,15 @@ var firebaseConfig = {
     amarelo: { tint:'var(--amber-tint)',  text:'#8A5A0E', solid:'#D9A400'       }
   };
   var CLASS_COLOR_KEYS = Object.keys(CLASS_COLORS);
+  // Mesmas cores de CLASS_COLORS, mas em hex puro — o jsPDF (geração de PDF) não entende var(--x)
+  var CLASS_COLOR_HEX = {
+    roxo:    { solid:'#8B5FBF', tint:'#ECE4F7', text:'#5B3A9C' },
+    verde:   { solid:'#7CB342', tint:'#E8F1DA', text:'#3F6B1F' },
+    azul:    { solid:'#29ABE2', tint:'#DFF3FC', text:'#0E6B8F' },
+    coral:   { solid:'#F0651E', tint:'#FCE2D3', text:'#A83B27' },
+    rosa:    { solid:'#E91E8C', tint:'#FBDCEE', text:'#A11364' },
+    amarelo: { solid:'#D9A400', tint:'#FDF2C4', text:'#8A5A0E' }
+  };
 
   var FUNCOES = ['Professor','Auxiliar','Pregador'];
   var CHILD_ICONS = { M:'👦', F:'👧' };
@@ -2509,6 +2520,139 @@ var firebaseConfig = {
     }
   }
 
+  // ---------- EXPORTAR ESCALAS EM GRADE (PDF) ----------
+  // Gera um PDF no estilo "folha de acompanhamento": uma linha por domingo,
+  // uma coluna (ou duas: Professor/Auxiliar) por turma, igual ao modelo de referência.
+  function buildScheduleGridPdf(state){
+    if(!(window.jspdf && window.jspdf.jsPDF)){
+      showToast('Não foi possível carregar o gerador de PDF. Verifique sua conexão.');
+      return null;
+    }
+    var range = computeExportRange(state);
+    var classesToUse = state.classId
+      ? DATA.classes.filter(function(c){ return c.id===state.classId; })
+      : DATA.classes.slice();
+    if(!classesToUse.length){ showToast('Cadastre ao menos uma turma antes de exportar'); return null; }
+
+    var occurrences = generateOccurrences(range.start, range.end).filter(function(o){ return o.weekday===0; });
+    // garante que domingos com escalas "avulsas" (sem culto cadastrado nesse dia) também apareçam
+    var occDates = {}; occurrences.forEach(function(o){ occDates[o.date]=true; });
+    DATA.schedule.forEach(function(s){
+      if(s.tipo==='Sábado') return;
+      if(s.date<range.start || s.date>range.end) return;
+      if(state.classId && s.classId!==state.classId) return;
+      if(!occDates[s.date]){ occDates[s.date]=true; occurrences.push({date:s.date, time:s.time||'', weekday:0}); }
+    });
+    occurrences.sort(function(a,b){ return a.date.localeCompare(b.date); });
+    if(!occurrences.length){ showToast('Nenhum domingo com culto/escala neste período'); return null; }
+
+    var doc = new window.jspdf.jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+    var pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(18);
+    doc.setTextColor('#0D4A52');
+    doc.text('ESCALA DO MINISTÉRIO INFANTIL', pageWidth/2, 34, {align:'center'});
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10.5);
+    doc.setTextColor('#5D7679');
+    var periodLabel = 'Período: '+fmtDateShort(range.start)+'/'+range.start.slice(0,4)+' a '+fmtDateShort(range.end)+'/'+range.end.slice(0,4);
+    doc.text(periodLabel, pageWidth/2, 50, {align:'center'});
+
+    var head1 = [{ content:'DATA\n(DOMINGO)', rowSpan:2, styles:{valign:'middle'} }];
+    var head2 = [];
+    var colClassMap = [null];
+    classesToUse.forEach(function(cls){
+      if(cls.soloRole){
+        head1.push({ content: cls.name.toUpperCase()+(cls.ageRange?(' ('+cls.ageRange+')'):''), styles:{halign:'center'} });
+        head2.push(cls.soloRole.toUpperCase());
+        colClassMap.push(cls);
+      } else {
+        head1.push({ content: cls.name.toUpperCase()+(cls.ageRange?(' ('+cls.ageRange+')'):''), colSpan:2, styles:{halign:'center'} });
+        head2.push('PROFESSOR(A)'); head2.push('AUXILIAR');
+        colClassMap.push(cls); colClassMap.push(cls);
+      }
+    });
+    head1.push({ content:'AULA', rowSpan:2, styles:{valign:'middle'} });
+    colClassMap.push(null);
+
+    var totalEscalas = 0;
+    var body = occurrences.map(function(occ){
+      var row = [fmtDateShort(occ.date)+(occ.time?'\nàs '+occ.time:'')];
+      classesToUse.forEach(function(cls){
+        var sched = DATA.schedule.find(function(s){ return s.date===occ.date && s.classId===cls.id; });
+        var lesson = sched && sched.lessonId ? lessonById(sched.lessonId) : null;
+        if(lesson) row._lesson = lesson.title;
+        if(cls.soloRole){
+          var solo = '—';
+          if(sched){ totalEscalas++; var nm = volunteerNames(sched.volunteerIds); solo = nm.length ? nm.join(', ') : '—'; }
+          row.push(solo);
+        } else {
+          var prof='—', aux='—';
+          if(sched){
+            totalEscalas++;
+            var profNames=[], auxNames=[];
+            (sched.volunteerIds||[]).forEach(function(vid){
+              var v = DATA.volunteers.find(function(x){return x.id===vid;});
+              if(!v) return;
+              if(v.role==='Auxiliar') auxNames.push(v.name); else profNames.push(v.name);
+            });
+            if(profNames.length) prof = profNames.join(', ');
+            if(auxNames.length) aux = auxNames.join(', ');
+          }
+          row.push(prof); row.push(aux);
+        }
+      });
+      row.push(row._lesson || '');
+      return row;
+    });
+
+    doc.autoTable({
+      startY: 62,
+      head: [head1, head2],
+      body: body,
+      theme: 'grid',
+      styles: { font:'helvetica', fontSize:8.5, cellPadding:5, halign:'center', valign:'middle', lineColor:'#E6E0CC', lineWidth:0.6, textColor:'#1B3A3E' },
+      alternateRowStyles: { fillColor:'#F6F9F9' },
+      didParseCell: function(data){
+        if(data.section==='head'){
+          var cls = colClassMap[data.column.index];
+          if(cls){
+            var hex = CLASS_COLOR_HEX[cls.color] || CLASS_COLOR_HEX.roxo;
+            if(data.row.index===0){ data.cell.styles.fillColor = hex.solid; data.cell.styles.textColor = '#FFFFFF'; data.cell.styles.fontStyle='bold'; }
+            else { data.cell.styles.fillColor = hex.tint; data.cell.styles.textColor = hex.text; data.cell.styles.fontStyle='bold'; }
+          } else {
+            data.cell.styles.fillColor = '#0D4A52'; data.cell.styles.textColor = '#FFFFFF'; data.cell.styles.fontStyle='bold';
+          }
+        }
+        if(data.section==='body' && data.column.index===0){
+          data.cell.styles.fillColor = '#146973'; data.cell.styles.textColor = '#FFFFFF'; data.cell.styles.fontStyle='bold';
+        }
+      }
+    });
+
+    var finalY = doc.lastAutoTable.finalY;
+    var pageHeight = doc.internal.pageSize.getHeight();
+    if(finalY > pageHeight-70){ doc.addPage('a4','landscape'); finalY = 40; }
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor('#5D7679');
+    doc.text('Em caso de impossibilidade, avise com antecedência à coordenação. Contamos com sua dedicação! 🙏', 40, finalY+22);
+    doc.setFont('helvetica','bold');
+    doc.setTextColor('#0D4A52');
+    doc.text('Total: '+totalEscalas+' escala'+(totalEscalas===1?'':'s'), pageWidth-40, finalY+22, {align:'right'});
+
+    return doc;
+  }
+
+  function downloadScheduleGridPdf(state){
+    var doc = buildScheduleGridPdf(state);
+    if(!doc) return;
+    var range = computeExportRange(state);
+    doc.save('escala-ministerio-infantil-'+range.start+'-a-'+range.end+'.pdf');
+    showToast('PDF gerado');
+  }
+
   function openExportForm(){
     var now = new Date();
     var state = {
@@ -2560,7 +2704,10 @@ var firebaseConfig = {
         '<textarea id="f-export-text" rows="12">'+escapeHtml(buildExportText(state))+'</textarea>'+
         '<div class="sheet-actions">'+
           '<button class="btn" id="f-copy">Copiar texto</button>'+
-          '<button class="btn primary" id="f-download">Baixar .txt</button>'+
+          '<button class="btn" id="f-download">Baixar .txt</button>'+
+        '</div>'+
+        '<div class="sheet-actions" style="margin-top:8px">'+
+          '<button class="btn primary block" id="f-download-pdf">📄 Baixar PDF (grade por turma)</button>'+
         '</div>'+
         '<div class="sheet-actions" style="margin-top:8px">'+
           '<button class="btn ghost block" id="f-close">Fechar</button>'+
@@ -2620,6 +2767,9 @@ var firebaseConfig = {
       };
       document.getElementById('f-download').onclick = function(){
         downloadTextFile(document.getElementById('f-export-text').value, 'escalas.txt');
+      };
+      document.getElementById('f-download-pdf').onclick = function(){
+        downloadScheduleGridPdf(state);
       };
     }
 
